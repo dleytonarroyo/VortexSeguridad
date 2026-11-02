@@ -17,3 +17,15 @@
     X-Frame-Options = "DENY"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
+
+# Los archivos de la aplicación llevan un código único en su nombre: se pueden guardar en caché por mucho tiempo
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# La página principal siempre se revisa para tomar la versión más reciente después de cada publicación
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"

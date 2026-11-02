@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
-import { Download, Printer, Camera } from "lucide-react";
+import { Download, Printer, Camera, Share2 } from "lucide-react";
 import { useApp } from "../data/store";
 import { PageHead, Btn, Empty, Img } from "../components/ui";
 import { fmtBs, fmtDate, fmtQty } from "../lib/format";
@@ -28,12 +28,24 @@ export default function QuotePreview() {
   const vis = (q.items || []).filter((l: any) => l.show);
   const color = co?.color || "#7928CA";
 
-  const download = async () => {
+  const canShare = typeof navigator !== "undefined" && !!(navigator as any).share && !!(navigator as any).canShare;
+  const makePdf = async (mode: "download" | "share") => {
     setMaking(true);
     try {
       const mod = await import("../pdf/QuotePdf");
-      await mod.downloadQuotePdf({ q, co, cl, totals: t });
+      const args = { q, co, cl, totals: t };
+      if (mode === "share") {
+        const shared = await mod.shareQuotePdf(args);
+        if (!shared) await mod.downloadQuotePdf(args);
+      } else await mod.downloadQuotePdf(args);
     } catch (e: any) {
+      const msg = String(e?.message || "");
+      if (e?.name === "AbortError") return; // el usuario cerró el menú de compartir
+      if (/dynamically imported module|Loading chunk|Importing a module script failed/i.test(msg)) {
+        notify("Se publicó una versión nueva de Vortex. Recargando…");
+        setTimeout(() => window.location.reload(), 1200);
+        return;
+      }
       console.error(e);
       notify("No se pudo generar el PDF. Usa el botón Imprimir y elige “Guardar como PDF”.", "error");
     } finally {
@@ -46,7 +58,11 @@ export default function QuotePreview() {
       <div className="no-print">
         <PageHead back={{ label: "Volver a la cotización", onClick: () => go("editor", q0.id) }} title="Vista previa del PDF"
           sub={ver ? `Documento de la versión ${ver.n} (${ver.reason}), tal como quedó guardado.` : "Datos actuales de la cotización. Las versiones enviadas o aceptadas se abren desde el panel Versiones."}
-          actions={<><Btn v="pri" icon={Download} disabled={making} onClick={download}>{making ? "Generando PDF…" : "Descargar PDF"}</Btn><Btn icon={Printer} onClick={() => window.print()}>Imprimir</Btn></>} />
+          actions={<>
+            <Btn v="pri" icon={Download} disabled={making} onClick={() => makePdf("download")}>{making ? "Generando PDF…" : "Descargar PDF"}</Btn>
+            {canShare && <Btn icon={Share2} disabled={making} onClick={() => makePdf("share")}>Compartir</Btn>}
+            <Btn icon={Printer} onClick={() => window.print()}>Imprimir</Btn>
+          </>} />
         <div className="vx-muted mb-3" style={{ fontSize: 12 }}>Los costos, márgenes, notas internas y conceptos ocultos nunca llegan al documento.</div>
       </div>
       <div className="vx-pdf">

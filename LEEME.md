@@ -9,6 +9,7 @@ Para dejarlo funcionando necesitas tres cosas: preparar **Supabase** (la base de
 |---|---|
 | `supabase/01_base_de_datos.sql` | Crea todas las tablas, la seguridad y el almacenamiento de imágenes. Se pega una sola vez. |
 | `supabase/02_administrador.sql` | Convierte tu usuario en administrador. |
+| `supabase/03_actualizacion_v1_1.sql` | Solo para bases ya instaladas: aplica las mejoras de la versión 1.1. |
 | `src/` | Código de la aplicación. No necesitas tocarlo. |
 | `public/` | Logo, encabezado de cotización e ícono de Vortex. |
 | `netlify.toml` | Configuración lista para Netlify. |
@@ -66,6 +67,30 @@ Si agregaste o cambiaste las variables **después** de publicar, ve a **Deploys 
 - **Olvido de contraseña:** el administrador asigna una nueva desde **Usuarios → Contraseña**. Cada persona puede cambiar la suya en **Configuración → Mi cuenta**.
 - **Empresas emisoras:** la empresa *Vortex* ya viene cargada con su logo y su encabezado. Puedes cambiar los datos, el logo y el encabezado desde **Empresas emisoras**.
 - **Usar en el celular:** abre la dirección de Netlify en el navegador del celular. Puedes añadirla a la pantalla de inicio desde el menú del navegador ("Agregar a pantalla de inicio").
+
+## Actualizar Vortex a una versión nueva
+
+1. Si la versión trae un archivo `supabase/03_actualizacion_…sql`, ejecútalo una vez en **SQL Editor** (no hace falta volver a ejecutar el 01 ni el 02).
+2. Reemplaza los archivos de tu carpeta por los de la versión nueva y súbelos con Git:
+
+```powershell
+git add .
+git commit -m "Vortex 1.1"
+git push
+```
+
+Netlify publica los cambios solo, en uno o dos minutos.
+
+## Novedades de la versión 1.1
+
+- Aviso antes de salir de una cotización con cambios sin guardar, y **Ctrl + S** para guardar en la computadora.
+- Botón **Compartir** en la vista previa: en el celular envía el PDF directo por WhatsApp, correo u otras apps.
+- El PDF se descarga con el número de cotización y el nombre del cliente.
+- Vortex se puede **instalar en el celular** con su ícono ("Agregar a pantalla de inicio").
+- Los datos se actualizan solos al volver a la aplicación.
+- Buscador en Proyectos y aviso si un cobro supera el saldo pendiente.
+- Si una pantalla falla o se publicó una versión nueva, aparece un aviso para recargar en lugar de una página en blanco.
+- Siempre queda al menos un administrador activo, y los cambios de usuarios quedan en el historial.
 
 ## Copias de seguridad
 

@@ -50,7 +50,7 @@ function ProductPicker({ onPick, onClose }: any) {
 
 export default function QuoteEditor() {
   const { id } = useParams();
-  const { db, go, run, log, notify, busy } = useApp();
+  const { db, go, run, log, notify, busy, setLeaveGuard } = useApp();
   const saved = db.quotations.find((q: any) => q.id === id);
   const savedSig = useMemo(() => JSON.stringify(saved || null), [saved]);
   const [draft, setDraft] = useState<any>(null);
@@ -66,6 +66,18 @@ export default function QuoteEditor() {
     setErrors([]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [savedSig]);
+
+  const dirtyNow = !!(saved && draft && saved.status !== "aceptada" &&
+    JSON.stringify({ ...draft, items: cleanItems(draft.items), versions: undefined, updatedAt: undefined }) !==
+    JSON.stringify({ ...saved, items: cleanItems(saved.items), versions: undefined, updatedAt: undefined }));
+  useEffect(() => { setLeaveGuard(dirtyNow); }, [dirtyNow, setLeaveGuard]);
+  useEffect(() => () => setLeaveGuard(false), [setLeaveGuard]);
+  const saveRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    const h = (e: KeyboardEvent) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") { e.preventDefault(); saveRef.current(); } };
+    window.addEventListener("keydown", h);
+    return () => window.removeEventListener("keydown", h);
+  }, []);
 
   if (!saved) return <Empty text="La cotización no existe o fue eliminada." action={<Btn onClick={() => go("cotizaciones")}>Volver a cotizaciones</Btn>} />;
   if (!draft) return <Spinner />;
@@ -139,6 +151,7 @@ export default function QuoteEditor() {
   };
 
   const save = () => run(async () => { const n = await persist(); await log(`Cotización ${n} guardada.`); }, "Cambios guardados", ["quotationsRaw", "quotationItems"]);
+  saveRef.current = () => { if (dirty && !ro && !busy) save(); };
   const send = () => {
     if (!validate()) return;
     run(async () => {
@@ -160,7 +173,7 @@ export default function QuoteEditor() {
       await log(`Cotización ${n} aceptada. Proyecto creado.`);
     }, "Cotización aceptada y proyecto creado");
     setModal(null);
-    if (ok && pid) go("proyecto", pid);
+    if (ok && pid) go("proyecto", pid, null, { force: true });
   };
   const reject = async () => {
     const ok = await run(async () => {
@@ -169,13 +182,14 @@ export default function QuoteEditor() {
       await log(`Cotización ${draft.number} rechazada.`);
     }, "Cotización rechazada", ["quotationsRaw", "quotationItems"]);
     setModal(null);
-    if (ok) go("cotizaciones");
+    if (ok) go("cotizaciones", null, null, { force: true });
   };
   const toTrash = async () => {
     const ok = await run(async () => { await upd("quotations", draft.id, { deletedAt: todayLaPaz() }); await log(`Cotización ${draft.number} enviada a la papelera.`); }, "Cotización enviada a la papelera", ["quotationsRaw"]);
-    if (ok) go("cotizaciones");
+    if (ok) go("cotizaciones", null, null, { force: true });
   };
   const duplicate = async () => {
+    if (dirty) { notify("Guarda los cambios antes de duplicar la cotización.", "error"); return; }
     let nid = "";
     const ok = await run(async () => {
       const co = db.companies.find((c: any) => c.id === saved.companyId) || company;
@@ -194,14 +208,14 @@ export default function QuoteEditor() {
       });
       await log(`Cotización ${saved.number} duplicada como ${number}.`);
     }, "Copia creada como borrador", ["quotationsRaw", "quotationItems"]);
-    if (ok && nid) go("editor", nid);
+    if (ok && nid) go("editor", nid, null, { force: true });
   };
   const preview = async () => {
     if (dirty && !ro) {
       const ok = await run(async () => { await persist(); }, undefined, ["quotationsRaw", "quotationItems"]);
       if (!ok) return;
     }
-    go("preview", draft.id);
+    go("preview", draft.id, null, { force: true });
   };
   const newClient = async () => {
     let cid = "";

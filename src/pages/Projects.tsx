@@ -10,11 +10,15 @@ import { uploadReceipt } from "../lib/files";
 export function Projects() {
   const { db, go } = useApp();
   const [f, setF] = useState("todos");
-  const list = db.projects.filter((p: any) => f === "todos" || (f === "activos" ? ACTIVE_P.includes(p.status) : p.status === f));
+  const [qs, setQs] = useState("");
+  const list = db.projects
+    .filter((p: any) => f === "todos" || (f === "activos" ? ACTIVE_P.includes(p.status) : p.status === f))
+    .filter((p: any) => !qs || `${p.code} ${p.name} ${db.clients.find((c: any) => c.id === p.clientId)?.name || ""}`.toLowerCase().includes(qs.toLowerCase()));
   return (
     <div>
       <PageHead title="Proyectos" sub="Instalaciones creadas a partir de cotizaciones aceptadas" />
-      <div className="flex flex-wrap gap-2 mb-4">
+      <div className="flex flex-wrap items-center gap-2 mb-4">
+        <input className="vx-in" style={{ maxWidth: 280 }} placeholder="Buscar código, proyecto o cliente" value={qs} onChange={(e) => setQs(e.target.value)} />
         {[["todos", "Todos"], ["activos", "Activos"], ["en_ejecucion", "En ejecución"], ["finalizado", "Finalizados"], ["cancelado", "Cancelados"]].map(([k, l]) =>
           <button key={k} className={`vx-pill ${f === k ? "on" : ""}`} onClick={() => setF(k)}>{l}</button>)}
       </div>
@@ -329,6 +333,7 @@ export function ProjectDetail() {
         initial={{ date: today, type: payments.length ? "parcial" : "anticipo", method: "Transferencia", amount: "" }} note={`Saldo actual por cobrar: ${fmtBs(fin.pendingCollect)}`}
         onSubmit={async (v: any) => {
           if (num(v.amount) <= 0) return "El importe debe ser mayor que cero.";
+          if (num(v.amount) > fin.pendingCollect + 0.009 && !window.confirm(`El cobro de ${fmtBs(v.amount)} supera el saldo pendiente de ${fmtBs(Math.max(0, fin.pendingCollect))}. ¿Registrarlo de todos modos?`)) return;
           const ok = await run(async () => {
             const receiptPath = v.receipt ? await uploadReceipt(v.receipt, `receipts/cobros/${p.id}`) : null;
             await ins("payments", { projectId: p.id, date: v.date, amount: r2(num(v.amount)), type: v.type, method: v.method, reference: v.reference || "", notes: v.notes || "", receiptPath, status: "vigente" });

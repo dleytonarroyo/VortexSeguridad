@@ -116,7 +116,10 @@ function QuoteDoc({ q, co, cl, totals, images }: any) {
   );
 }
 
-export async function downloadQuotePdf({ q, co, cl, totals }: any) {
+const safeName = (t: string) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^A-Za-z0-9-]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+
+/** Genera el PDF y devuelve el archivo listo para descargar o compartir. */
+export async function buildQuotePdf({ q, co, cl, totals }: any): Promise<File> {
   const vis = (q.items || []).filter((l: any) => l.show && l.kind === "producto" && l.imagePath);
   const [header, logo, ...itemImgs] = await Promise.all([
     toDataUrl(co?.headerPath), co?.headerPath ? Promise.resolve(null) : toDataUrl(co?.logoPath), ...vis.map((l: any) => toDataUrl(l.imagePath)),
@@ -124,12 +127,29 @@ export async function downloadQuotePdf({ q, co, cl, totals }: any) {
   const items: Record<string, string> = {};
   vis.forEach((l: any, i: number) => { if (itemImgs[i]) items[l.id] = itemImgs[i] as string; });
   const blob = await pdf(<QuoteDoc q={q} co={co} cl={cl} totals={totals} images={{ header, logo, items }} />).toBlob();
-  const url = URL.createObjectURL(blob);
+  const name = ["Cotizacion", q.number, safeName(cl?.name)].filter(Boolean).join("-") + ".pdf";
+  return new File([blob], name, { type: "application/pdf" });
+}
+
+export async function downloadQuotePdf(args: any) {
+  const file = await buildQuotePdf(args);
+  const url = URL.createObjectURL(file);
   const a = document.createElement("a");
   a.href = url;
-  a.download = `Cotizacion-${q.number}.pdf`;
+  a.download = file.name;
   document.body.appendChild(a);
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
+/** En el celular abre el menú para enviar el PDF por WhatsApp, correo, etc. */
+export async function shareQuotePdf(args: any) {
+  const file = await buildQuotePdf(args);
+  const nav: any = navigator;
+  if (nav.canShare && nav.canShare({ files: [file] })) {
+    await nav.share({ files: [file], title: `Cotización ${args.q.number}` });
+    return true;
+  }
+  return false;
 }

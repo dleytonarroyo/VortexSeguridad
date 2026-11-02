@@ -111,7 +111,8 @@ type Ctx = {
   busy: boolean;
   reload: (keys?: string[]) => Promise<void>;
   notify: (text: string, kind?: "ok" | "error") => void;
-  go: (page: string, id?: string | null, tab?: string | number | null) => void;
+  go: (page: string, id?: string | null, tab?: string | number | null, opts?: { force?: boolean }) => void;
+  setLeaveGuard: (on: boolean) => void;
   run: (fn: () => Promise<any>, okMsg?: string, keys?: string[]) => Promise<boolean>;
   log: (text: string) => Promise<void>;
   signOut: () => Promise<void>;
@@ -132,6 +133,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ text: string; kind: string } | null>(null);
   const toastTimer = useRef<any>(null);
+  const guardRef = useRef(false);
+  const lastLoad = useRef(0);
 
   const notify = useCallback((text: string, kind: "ok" | "error" = "ok") => {
     setToast({ text, kind });
@@ -172,8 +175,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
         return next;
       });
       setLoadError(null);
+      lastLoad.current = Date.now();
     } catch (e: any) {
-      setLoadError(friendly(e));
+      // Si ya hay datos en pantalla, una falla de red al refrescar no bloquea la aplicación.
+      setRaw((prev: any) => { if (!prev) setLoadError(friendly(e)); return prev; });
     }
   }, []);
 
@@ -187,6 +192,24 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setLoading(true);
     Promise.all([reload(), loadProfiles()]).finally(() => setLoading(false));
   }, [canUse, reload, loadProfiles]);
+
+  /* Al volver a la aplicación (por ejemplo desde otra pestaña o desde WhatsApp) se actualizan los datos */
+  useEffect(() => {
+    if (!canUse) return;
+    const onVis = () => {
+      if (document.visibilityState === "visible" && Date.now() - lastLoad.current > 60000) { reload(); loadProfiles(); }
+    };
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("focus", onVis);
+    return () => { document.removeEventListener("visibilitychange", onVis); window.removeEventListener("focus", onVis); };
+  }, [canUse, reload, loadProfiles]);
+
+  /* Aviso al cerrar o recargar la pestaña con cambios sin guardar */
+  useEffect(() => {
+    const h = (e: BeforeUnloadEvent) => { if (guardRef.current) { e.preventDefault(); e.returnValue = ""; } };
+    window.addEventListener("beforeunload", h);
+    return () => window.removeEventListener("beforeunload", h);
+  }, []);
 
   /* Arma las estructuras que usan las pantallas */
   const db = useMemo(() => {
@@ -237,18 +260,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [reload, notify]);
 
-  const go = useCallback((page: string, id?: string | null, tab?: string | number | null) => {
+  const go = useCallback((page: string, id?: string | null, tab?: string | number | null, opts?: { force?: boolean }) => {
+    if (guardRef.current && !opts?.force && !window.confirm("Tienes cambios sin guardar. ¿Quieres salir sin guardarlos?")) return;
+    guardRef.current = false;
     navigate(pathFor(page, id, tab));
     try { window.scrollTo(0, 0); } catch { /* sin efecto */ }
   }, [navigate]);
 
   const signOut = useCallback(async () => {
+    if (guardRef.current && !window.confirm("Tienes cambios sin guardar. ¿Quieres cerrar sesión de todos modos?")) return;
+    guardRef.current = false;
     await supabase.auth.signOut();
     navigate("/login");
   }, [navigate]);
 
   const value: Ctx = {
     session, profile, isAdmin, authReady, db, loading, loadError, busy, reload, notify, go, run, log, signOut,
+    setLeaveGuard: (on: boolean) => { guardRef.current = on; },
     refreshProfile: async () => { await loadProfile(session); await loadProfiles(); },
   };
 

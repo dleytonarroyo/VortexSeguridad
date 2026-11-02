@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { useApp } from "../data/store";
 import { BrandMark, Spinner, Btn } from "./ui";
+import ErrorBoundary from "./ErrorBoundary";
 
 const NAV: [string, [string, string, any, boolean?][]][] = [
   ["Operación", [["dashboard", "Dashboard", LayoutDashboard], ["cotizaciones", "Cotizaciones", FileText], ["proyectos", "Proyectos", FolderKanban]]],
@@ -73,7 +74,7 @@ export default function Layout({ children }: { children: ReactNode }) {
                 <div className="vx-muted mb-3">{loadError}</div>
                 <Btn v="pri" onClick={() => reload()}>Reintentar</Btn>
               </div>
-            ) : loading || !db ? <Spinner text="Cargando datos…" /> : children}
+            ) : loading || !db ? <Spinner text="Cargando datos…" /> : <ErrorBoundary resetKey={pathname}>{children}</ErrorBoundary>}
           </main>
         </div>
       </div>
