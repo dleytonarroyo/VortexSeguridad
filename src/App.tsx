@@ -4,6 +4,7 @@ import { AppProvider, useApp } from "./data/store";
 import Layout from "./components/Layout";
 import { Spinner } from "./components/ui";
 import Login from "./pages/Login";
+import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import { Quotations, Trash } from "./pages/Quotations";
 import QuoteEditor from "./pages/QuoteEditor";
@@ -46,6 +47,7 @@ export default function App() {
     <AppProvider>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/restablecer-contrasena" element={<ResetPassword />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<Protected><Dashboard /></Protected>} />
         <Route path="/cotizaciones" element={<Protected><Quotations /></Protected>} />

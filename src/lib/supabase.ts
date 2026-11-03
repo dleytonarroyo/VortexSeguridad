@@ -7,7 +7,7 @@ const key = (import.meta.env.VITE_SUPABASE_ANON_KEY || "").trim();
 export const configOk = Boolean(url && key);
 
 export const supabase = createClient(url || "https://sin-configurar.supabase.co", key || "sin-configurar", {
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false },
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true, flowType: "implicit" },
 });
 
 /** Nombre del bucket privado donde se guardan imágenes y comprobantes. */

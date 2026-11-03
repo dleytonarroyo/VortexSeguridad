@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import { Plus, Save, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useApp, upd, friendly } from "../data/store";
-import { PageHead, Btn, Field, Inp, Row, Tabs } from "../components/ui";
+import { PageHead, Btn, Field, Inp, Row, Tabs, PasswordInput } from "../components/ui";
 import { fmtBs, fmtPct, fmtDateTime, num } from "../lib/format";
 import { suggested, marginOf } from "../lib/calc";
 
@@ -65,8 +65,8 @@ export default function SettingsPage() {
         <Row k="Usuario" v={profile?.email} /><Row k="Nombre" v={profile?.fullName || "—"} /><Row k="Rol" v={profile?.role === "admin" ? "Administrador" : "Operador"} />
         <h3 className="mt-4 mb-2">Cambiar mi contraseña</h3>
         <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(180px,1fr))" }}>
-          <Field label="Nueva contraseña"><Inp type="password" autoComplete="new-password" value={pw.a} onChange={(e: any) => setPw({ ...pw, a: e.target.value })} /></Field>
-          <Field label="Repite la contraseña"><Inp type="password" autoComplete="new-password" value={pw.b} onChange={(e: any) => setPw({ ...pw, b: e.target.value })} /></Field>
+          <Field label="Nueva contraseña"><PasswordInput autoComplete="new-password" value={pw.a} onChange={(e: any) => setPw({ ...pw, a: e.target.value })} /></Field>
+          <Field label="Repite la contraseña"><PasswordInput autoComplete="new-password" value={pw.b} onChange={(e: any) => setPw({ ...pw, b: e.target.value })} /></Field>
         </div>
         <Btn v="pri" className="mt-3" disabled={!pw.a} onClick={changePw}>Actualizar contraseña</Btn>
       </div>}

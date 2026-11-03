@@ -36,7 +36,7 @@ export default function UsersPage() {
           const ok = await run(async () => { await rpc("admin_create_user", { p_email: v.email, p_password: v.password, p_full_name: v.fullName || "", p_role: v.role }); await after(); }, "Usuario creado", ["audit"]);
           if (ok) setModal(null);
         }}
-        fields={[{ k: "fullName", label: "Nombre", required: true }, { k: "email", label: "Correo electrónico", type: "email", required: true }, { k: "password", label: "Contraseña (mínimo 8 caracteres)", type: "text", required: true }, { k: "role", label: "Rol", type: "select", options: roleOpts, full: true }]} />}
+        fields={[{ k: "fullName", label: "Nombre", required: true }, { k: "email", label: "Correo electrónico", type: "email", required: true }, { k: "password", label: "Contraseña (mínimo 8 caracteres)", type: "password", required: true }, { k: "role", label: "Rol", type: "select", options: roleOpts, full: true }]} />}
       {modal?.kind === "edit" && <FormModal title={`Editar ${modal.user.email}`} onClose={() => setModal(null)} initial={{ fullName: modal.user.fullName, role: modal.user.role, active: modal.user.active }}
         onSubmit={async (v: any) => {
           const ok = await run(async () => { await rpc("admin_update_user", { p_user: modal.user.id, p_full_name: v.fullName || "", p_role: v.role, p_active: !!v.active }); await after(); }, "Usuario actualizado", ["audit"]);
@@ -49,7 +49,7 @@ export default function UsersPage() {
           const ok = await run(async () => { await rpc("admin_reset_password", { p_user: modal.user.id, p_password: v.password }); }, "Contraseña actualizada", ["audit"]);
           if (ok) setModal(null);
         }}
-        fields={[{ k: "password", label: "Nueva contraseña (mínimo 8 caracteres)", type: "text", required: true, full: true }]} />}
+        fields={[{ k: "password", label: "Nueva contraseña (mínimo 8 caracteres)", type: "password", required: true, full: true }]} />}
     </div>
   );
 }

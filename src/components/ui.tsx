@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Camera, X, ArrowLeft, Paperclip } from "lucide-react";
+import { Camera, X, ArrowLeft, Paperclip, Eye, EyeOff } from "lucide-react";
 import { useFileUrl, openFile } from "../lib/files";
 import { useApp } from "../data/store";
 
@@ -143,6 +143,8 @@ export function FormModal({ title, fields, initial = {}, onSubmit, onClose, subm
               <textarea className="vx-in" rows={2} value={v[f.k] ?? ""} onChange={(e) => setV({ ...v, [f.k]: e.target.value })} />
             ) : f.type === "checkbox" ? (
               <label className="flex items-center gap-2 py-2"><input type="checkbox" checked={!!v[f.k]} onChange={(e) => setV({ ...v, [f.k]: e.target.checked })} />{f.hint}</label>
+            ) : f.type === "password" ? (
+              <PasswordInput autoComplete="new-password" value={v[f.k] ?? ""} onChange={(e: any) => setV({ ...v, [f.k]: e.target.value })} />
             ) : f.type === "file" ? (
               <input className="vx-in" type="file" accept={f.accept || "image/png,image/jpeg,application/pdf"} onChange={(e) => setV({ ...v, [f.k]: e.target.files?.[0] || null })} />
             ) : (
@@ -154,5 +156,20 @@ export function FormModal({ title, fields, initial = {}, onSubmit, onClose, subm
       </div>
       {err && <div className="mt-3" style={{ color: "var(--rec)", fontSize: 13 }}>{err}</div>}
     </Modal>
+  );
+}
+
+/* Campo de contraseña con botón para mostrar u ocultar lo que se escribe. */
+export function PasswordInput({ value, onChange, autoComplete = "current-password", ...rest }: any) {
+  const [show, setShow] = useState(false);
+  return (
+    <div style={{ position: "relative" }}>
+      <input className="vx-in" type={show ? "text" : "password"} autoComplete={autoComplete} value={value} onChange={onChange}
+        style={{ paddingRight: 44 }} autoCapitalize="none" autoCorrect="off" spellCheck={false} {...rest} />
+      <button type="button" className="vx-btn gh sm" onClick={() => setShow(!show)} aria-label={show ? "Ocultar contraseña" : "Mostrar contraseña"}
+        title={show ? "Ocultar contraseña" : "Mostrar contraseña"} style={{ position: "absolute", right: 4, top: "50%", transform: "translateY(-50%)", padding: "6px 8px" }}>
+        {show ? <EyeOff size={17} /> : <Eye size={17} />}
+      </button>
+    </div>
   );
 }

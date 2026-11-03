@@ -56,6 +56,11 @@ export function friendly(e: any): string {
   if (code === "42501" || /row-level security/i.test(msg)) return "No tienes permiso para realizar esta acción.";
   if (/Failed to fetch|NetworkError|network/i.test(msg)) return "No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo.";
   if (/Invalid login credentials/i.test(msg)) return "Correo o contraseña incorrectos.";
+  if (/different from the old password/i.test(msg)) return "La nueva contraseña debe ser diferente a la anterior.";
+  if (/Password should be at least|weak password|weak_password/i.test(msg)) return "La contraseña es muy corta o muy simple. Usa al menos 8 caracteres.";
+  if (/not authorized|email_address_not_authorized/i.test(msg)) return "Todavía no se pueden enviar correos a esta dirección. Pide al administrador que te asigne una contraseña nueva desde Usuarios.";
+  if (/rate limit|only request this after|over_email_send_rate_limit/i.test(msg)) return "Ya se envió un correo hace poco. Espera unos minutos y vuelve a intentarlo.";
+  if (/Auth session missing|session_not_found/i.test(msg)) return "El enlace ya no es válido. Solicita uno nuevo desde la pantalla de inicio de sesión.";
   if (/banned/i.test(msg)) return "Este usuario está desactivado.";
   if (/JWT|token/i.test(msg)) return "Tu sesión expiró. Vuelve a iniciar sesión.";
   return msg || "Ocurrió un error inesperado.";

@@ -75,11 +75,37 @@ Si agregaste o cambiaste las variables **después** de publicar, ve a **Deploys 
 
 ```powershell
 git add .
-git commit -m "Vortex 1.1"
+git commit -m "Vortex 1.2"
 git push
 ```
 
 Netlify publica los cambios solo, en uno o dos minutos.
+
+## Recuperar contraseña por correo (versión 1.2)
+
+En la pantalla de inicio de sesión está **¿Olvidaste tu contraseña?**. Para que el enlace del correo funcione, configura Supabase una sola vez:
+
+1. **Authentication → URL Configuration**
+   - **Site URL:** tu dirección de Netlify, por ejemplo `https://vortexseguridad.netlify.app`
+   - **Redirect URLs → Add URL:** la misma dirección terminada en `/**`, por ejemplo `https://vortexseguridad.netlify.app/**`
+   - Pulsa **Save**.
+2. **Envío de correos.** Sin configuración adicional, Supabase solo envía correos a los miembros de tu equipo de Supabase (normalmente, el correo con el que creaste tu cuenta de Supabase) y como máximo 2 por hora. Para que también les lleguen a tus empleados:
+   - En Gmail activa la **verificación en 2 pasos** y crea una **contraseña de aplicación** (Cuenta de Google → Seguridad → Contraseñas de aplicaciones).
+   - En Supabase ve a **Authentication → Emails → SMTP Settings** y activa **Enable custom SMTP**:
+     - Sender email: tu correo de Gmail · Sender name: `Vortex`
+     - Host: `smtp.gmail.com` · Port: `465`
+     - Username: tu correo de Gmail · Password: la contraseña de aplicación de 16 letras
+   - Pulsa **Save changes**.
+3. *(Opcional, requiere el paso 2)* En **Authentication → Emails → Templates → Reset Password** puedes poner el correo en español:
+   - Subject: `Crea tu nueva contraseña de Vortex`
+   - Body: `<h2>Vortex</h2><p>Pulsa el enlace para crear una contraseña nueva:</p><p><a href="{{ .ConfirmationURL }}">Crear nueva contraseña</a></p><p>Si no lo pediste, ignora este correo.</p>`
+
+Aunque no configures el correo, el administrador siempre puede asignar una contraseña nueva desde **Usuarios → Contraseña**.
+
+## Novedades de la versión 1.2
+
+- **¿Olvidaste tu contraseña?** en la pantalla de inicio de sesión, con enlace por correo para crear una nueva.
+- Botón con forma de **ojo** en todos los campos de contraseña para ver lo que se escribe.
 
 ## Novedades de la versión 1.1
 
