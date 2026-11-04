@@ -115,3 +115,4 @@ body{-webkit-tap-highlight-color:transparent}
 @keyframes vxspin{to{transform:rotate(360deg)}}
 .vx-toast.err{background:var(--rec)}
 .vx-link{background:none;border:0;padding:0;color:var(--lens-dark);font-weight:600;cursor:pointer;font-family:inherit;font-size:inherit}
+.vx-tbl tfoot td{background:#FAF8FE;font-weight:700;border-top:2px solid var(--line);border-bottom:0;padding:10px}

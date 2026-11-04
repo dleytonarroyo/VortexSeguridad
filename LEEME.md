@@ -10,6 +10,7 @@ Para dejarlo funcionando necesitas tres cosas: preparar **Supabase** (la base de
 | `supabase/01_base_de_datos.sql` | Crea todas las tablas, la seguridad y el almacenamiento de imágenes. Se pega una sola vez. |
 | `supabase/02_administrador.sql` | Convierte tu usuario en administrador. |
 | `supabase/03_actualizacion_v1_1.sql` | Solo para bases ya instaladas: aplica las mejoras de la versión 1.1. |
+| `supabase/04_actualizacion_v1_4.sql` | Solo para bases ya instaladas: proveedor en las cotizaciones y costos aparte (versiones 1.3 y 1.4). |
 | `src/` | Código de la aplicación. No necesitas tocarlo. |
 | `public/` | Logo, encabezado de cotización e ícono de Vortex. |
 | `netlify.toml` | Configuración lista para Netlify. |
@@ -75,7 +76,7 @@ Si agregaste o cambiaste las variables **después** de publicar, ve a **Deploys 
 
 ```powershell
 git add .
-git commit -m "Vortex 1.2"
+git commit -m "Vortex 1.4"
 git push
 ```
 
@@ -101,6 +102,21 @@ En la pantalla de inicio de sesión está **¿Olvidaste tu contraseña?**. Para 
    - Body: `<h2>Vortex</h2><p>Pulsa el enlace para crear una contraseña nueva:</p><p><a href="{{ .ConfirmationURL }}">Crear nueva contraseña</a></p><p>Si no lo pediste, ignora este correo.</p>`
 
 Aunque no configures el correo, el administrador siempre puede asignar una contraseña nueva desde **Usuarios → Contraseña**.
+
+## Novedades de la versión 1.4
+
+- **Agregar varios productos a la vez:** en el buscador marcas todos los que necesitas, ajustas la cantidad de cada uno y los agregas juntos.
+- **Totales en las tablas:** al pie de equipos y de servicios se ve el costo real total y el total al cliente.
+- **Costos aparte:** nueva sección para gastos internos que no se cobran por separado ni salen en el PDF (viáticos, comisiones, alquileres). Se suman al costo total.
+- **Resumen "Costos y ganancia"** debajo del total del cliente: costo real de equipos, costo real de servicios y otros, costo de la cotización, costos aparte, costo total, ganancia líquida y margen de ganancia.
+- En el proyecto, el presupuesto muestra el mismo desglose, y al agregar un adicional puedes marcar **"Ya lo pagué"** para que se sume también al costo real.
+
+## Novedades de la versión 1.3
+
+- Cada equipo o material de la cotización tiene su **proveedor** (se propone el del catálogo y se puede cambiar o crear uno nuevo ahí mismo).
+- El panel interno muestra **Compras por proveedor**: cuánto debes comprar a cada uno.
+- El proveedor pasa al presupuesto y a los materiales del proyecto.
+- El proveedor es información interna: **nunca aparece en el PDF** del cliente.
 
 ## Novedades de la versión 1.2
 

@@ -16,10 +16,12 @@ export const lineCalc = (l: any) => {
 };
 
 export const quoteTotals = (q: any) => {
-  let prod = 0, serv = 0, cost = 0, hidden = 0, lineDisc = 0;
+  let prod = 0, serv = 0, hidden = 0, lineDisc = 0;
+  let costProd = 0, costServ = 0, costExtra = 0;
   (q.items || []).forEach((l: any) => {
     const c = lineCalc(l);
-    cost += c.cost;
+    if (l.kind === "costo") { costExtra += c.cost; return; } // costos aparte: solo internos
+    if (l.kind === "producto") costProd += c.cost; else costServ += c.cost;
     if (l.show) {
       if (l.kind === "producto") prod += c.total;
       else serv += c.total;
@@ -29,8 +31,11 @@ export const quoteTotals = (q: any) => {
   const base = r2(prod + serv);
   const gdisc = q.gDiscType === "%" ? r2((base * num(q.gDiscVal)) / 100) : r2(Math.min(num(q.gDiscVal), base));
   const total = r2(base - gdisc);
+  const quoteCost = r2(costProd + costServ);
+  const cost = r2(quoteCost + costExtra);
   return {
-    prod: r2(prod), serv: r2(serv), base, lineDisc: r2(lineDisc), gdisc, total, cost: r2(cost),
+    prod: r2(prod), serv: r2(serv), base, lineDisc: r2(lineDisc), gdisc, total,
+    costProd: r2(costProd), costServ: r2(costServ), quoteCost, costExtra: r2(costExtra), cost,
     profit: r2(total - cost), margin: marginOf(total, cost), markup: markupOf(total, cost), hidden: r2(hidden),
   };
 };
@@ -99,6 +104,9 @@ export const committedOf = (db: any, pid: string) =>
 export const projectFin = (db: any, p: any) => {
   const agreed = r2(sum(p.items.filter((i: any) => i.billable), (i) => lineCalc(i).total) - num(p.discountAmt));
   const budgetCost = sum(p.items, (i) => lineCalc(i).cost);
+  const budgetProd = sum(p.items.filter((i: any) => i.kind === "producto"), (i) => lineCalc(i).cost);
+  const budgetExtra = sum(p.items.filter((i: any) => i.kind === "costo"), (i) => lineCalc(i).cost);
+  const budgetServ = r2(budgetCost - budgetProd - budgetExtra);
   const movs = db.movements.filter((m: any) => m.projectId === p.id);
   const matCost = sum(movs, (m) => (m.type === "salida_proyecto" ? num(m.qty) * num(m.unitCost) : m.type === "devolucion_proyecto" ? -num(m.qty) * num(m.unitCost) : 0));
   const exps = db.expenses.filter((e: any) => e.projectId === p.id && e.status !== "anulado");
@@ -112,7 +120,7 @@ export const projectFin = (db: any, p: any) => {
   const realCost = r2(matCost + expCost + instCost);
   const cashOut = r2(expPaid + instPaid + directPurch);
   return {
-    agreed, budgetCost, estProfit: r2(agreed - budgetCost), matCost, expCost, instCost, instPaid, instPending: r2(instCost - instPaid),
+    agreed, budgetCost, budgetProd, budgetServ, budgetExtra, estProfit: r2(agreed - budgetCost), matCost, expCost, instCost, instPaid, instPending: r2(instCost - instPaid),
     realCost, realResult: r2(agreed - realCost), collected, pendingCollect: r2(agreed - collected), expPaid, directPurch, cashOut,
     cashFlow: r2(collected - cashOut), estMargin: marginOf(agreed, budgetCost), realMargin: marginOf(agreed, realCost),
   };

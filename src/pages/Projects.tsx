@@ -103,7 +103,9 @@ export function ProjectDetail() {
     const out = sum(movs.filter((m: any) => m.type === "salida_proyecto"), "qty");
     const back = sum(movs.filter((m: any) => m.type === "devolucion_proyecto"), "qty");
     const cost = sum(movs, (m: any) => (m.type === "salida_proyecto" ? num(m.qty) * num(m.unitCost) : m.type === "devolucion_proyecto" ? -num(m.qty) * num(m.unitCost) : 0));
-    return { prod, planned, out, back, net: r2(out - back), cost, stock: stockOf(db, pid) };
+    const supId = p.items.find((i: any) => i.productId === pid && i.supplierId)?.supplierId;
+    const supplier = db.suppliers.find((x: any) => x.id === supId)?.name || "";
+    return { prod, planned, out, back, net: r2(out - back), cost, stock: stockOf(db, pid), supplier };
   });
   const issue = async (v: any) => {
     const prod = db.products.find((x: any) => x.id === v.productId);
@@ -154,7 +156,10 @@ export function ProjectDetail() {
       {tab === "resumen" && pf && <div className="space-y-5">
         <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))" }}>
           <div className="vx-card p-4"><h3 className="mb-2">Estimado al aceptar</h3>
-            <Row k="Ingreso acordado" v={fmtBs(fin.agreed)} /><Row k="Costo presupuestado" v={fmtBs(fin.budgetCost)} />
+            <Row k="Ingreso acordado" v={fmtBs(fin.agreed)} />
+            <Row k="Costo de equipos y materiales" v={fmtBs(fin.budgetProd)} /><Row k="Costo de servicios y otros" v={fmtBs(fin.budgetServ)} />
+            {fin.budgetExtra > 0 && <Row k="Costos aparte" v={fmtBs(fin.budgetExtra)} />}
+            <div style={{ borderTop: "1px solid var(--line)" }}><Row k="Costo presupuestado total" v={fmtBs(fin.budgetCost)} strong /></div>
             <Row k="Ganancia estimada" v={fmtBs(fin.estProfit)} strong tone={toneOf(fin.estProfit)} /><Row k="Margen estimado" v={fmtPct(fin.estMargin)} />
             {p.estimatedAtAcceptance && Math.abs(num(p.estimatedAtAcceptance.profit) - fin.estProfit) > 0.009 && <div className="vx-muted mt-1" style={{ fontSize: 12 }}>Al aceptar era {fmtBs(p.estimatedAtAcceptance.profit)}; cambió por adicionales.</div>}
           </div>
@@ -183,10 +188,10 @@ export function ProjectDetail() {
         </div>
         <div className="vx-card">
           <div className="flex items-center justify-between p-4 pb-2"><h3>Presupuesto del proyecto</h3>{!locked && <Btn sm icon={Plus} onClick={() => setModal("extra")}>Agregar adicional</Btn>}</div>
-          <div className="vx-scroll"><table className="vx-tbl"><thead><tr><th>Concepto</th><th>Origen</th><th className="r">Cant.</th><th className="r">Venta</th><th className="r">Costo presupuestado</th><th>Cobro al cliente</th></tr></thead>
+          <div className="vx-scroll"><table className="vx-tbl"><thead><tr><th>Concepto</th><th>Proveedor</th><th>Origen</th><th className="r">Cant.</th><th className="r">Venta</th><th className="r">Costo presupuestado</th><th>Cobro al cliente</th></tr></thead>
             <tbody>{p.items.map((i: any) => {
               const c = lineCalc(i);
-              return <tr key={i.id}><td>{i.name}</td><td><span className={`vx-badge ${i.origin === "adicional" ? "b-blue" : "b-gray"}`}>{i.origin === "adicional" ? "Adicional" : "Cotización"}</span></td>
+              return <tr key={i.id}><td>{i.name}</td><td className="vx-muted">{i.kind === "producto" ? (db.suppliers.find((x: any) => x.id === i.supplierId)?.name || "—") : "—"}</td><td><span className={`vx-badge ${i.origin === "adicional" ? "b-blue" : "b-gray"}`}>{i.origin === "adicional" ? "Adicional" : "Cotización"}</span>{i.kind === "costo" && <span className="vx-badge b-purple" style={{ marginLeft: 4 }}>Costo aparte</span>}</td>
                 <td className="r">{fmtQty(i.qty)} {i.unit !== "servicio" ? i.unit : ""}</td><td className="r nw">{i.billable ? fmtBs(c.total) : "—"}</td><td className="r nw">{fmtBs(c.cost)}</td>
                 <td>{i.billable ? "Se cobra" : <span className="vx-muted">Costo interno</span>}</td></tr>;
             })}</tbody></table></div>
@@ -207,7 +212,7 @@ export function ProjectDetail() {
             const diff = r2(r.net - r.planned);
             return (
               <tr key={r.prod.id}>
-                <td><div className="flex items-center gap-2"><Photo path={r.prod.imagePath} size={34} /><div><div style={{ fontWeight: 500 }}>{r.prod.name}</div><div className="vx-muted" style={{ fontSize: 12 }}>{r.prod.unit}</div></div></div></td>
+                <td><div className="flex items-center gap-2"><Photo path={r.prod.imagePath} size={34} /><div><div style={{ fontWeight: 500 }}>{r.prod.name}</div><div className="vx-muted" style={{ fontSize: 12 }}>{r.prod.unit}{r.supplier ? ` · ${r.supplier}` : ""}</div></div></div></td>
                 <td className="r">{fmtQty(r.planned)}</td><td className="r">{fmtQty(r.out)}</td><td className="r">{fmtQty(r.back)}</td><td className="r" style={{ fontWeight: 600 }}>{fmtQty(r.net)}</td>
                 <td className="r" style={{ color: diff > 0 ? "var(--rec)" : diff < 0 ? "var(--amber)" : "var(--ok)" }}>{diff > 0 ? "+" : ""}{fmtQty(diff)}</td>
                 <td className="r nw">{fmtBs(r.cost)}</td><td className="r" style={{ color: r.stock <= num(r.prod.minStock) ? "var(--rec)" : undefined }}>{fmtQty(r.stock)}</td>
@@ -319,16 +324,24 @@ export function ProjectDetail() {
       {modal?.kind === "return" && <FormModal title="Registrar devolución al almacén" submitLabel="Registrar devolución" onClose={() => setModal(null)} onSubmit={giveBack}
         initial={{ productId: modal.productId || matRows.find((r) => r.net > 0)?.prod.id, qty: "", date: today }}
         fields={[{ k: "productId", label: "Producto", type: "select", options: matRows.filter((r) => r.net > 0).map((r) => ({ value: r.prod.id, label: `${r.prod.name} (salieron ${fmtQty(r.net)} netos)` })), required: true, full: true }, { k: "qty", label: "Cantidad", type: "number", required: true }, { k: "date", label: "Fecha", type: "date", required: true }, { k: "notes", label: "Observaciones", type: "textarea" }]} />}
-      {modal === "extra" && <FormModal title="Agregar adicional al presupuesto" onClose={() => setModal(null)} initial={{ qty: 1, billable: true }}
-        note="La cotización aceptada no cambia. El adicional solo modifica el presupuesto vigente del proyecto."
+      {modal === "extra" && <FormModal title="Agregar adicional al presupuesto" onClose={() => setModal(null)} initial={{ qty: 1, billable: true, asExpense: false, expDate: today }}
+        note="La cotización aceptada no cambia. El adicional modifica el presupuesto del proyecto. Si ya gastaste ese dinero, marca la última opción para que también se sume al costo real."
         onSubmit={async (v: any) => {
           const ok = await run(async () => {
-            await ins("project_items", { projectId: p.id, position: p.items.length + 1000, origin: "adicional", kind: "servicio", serviceKind: "Otro", name: v.name, unit: "servicio", qty: num(v.qty), cost: r2(num(v.cost)), price: r2(num(v.price)), show: !!v.billable, billable: !!v.billable });
-            await log(`${p.code}: adicional agregado (${v.name}).`);
-          }, "Adicional agregado", ["projectItems"]);
+            await ins("project_items", { projectId: p.id, position: p.items.length + 1000, origin: "adicional", kind: v.billable ? "servicio" : "costo", serviceKind: "Otro", name: v.name, unit: "servicio", qty: num(v.qty), cost: r2(num(v.cost)), price: v.billable ? r2(num(v.price)) : 0, show: !!v.billable, billable: !!v.billable });
+            if (v.asExpense && num(v.cost) * num(v.qty) > 0) {
+              await ins("expenses", { projectId: p.id, category: "Otros", description: `Adicional: ${v.name}`, amount: r2(num(v.cost) * num(v.qty)), date: v.expDate || today, status: "pagado", paidDate: v.expDate || today });
+            }
+            await log(`${p.code}: adicional agregado (${v.name})${v.asExpense ? " y registrado como gasto real" : ""}.`);
+          }, "Adicional agregado", ["projectItems", "expenses"]);
           if (ok) setModal(null);
         }}
-        fields={[{ k: "name", label: "Concepto", required: true, full: true }, { k: "qty", label: "Cantidad", type: "number", required: true }, { k: "price", label: "Precio al cliente (Bs)", type: "number" }, { k: "cost", label: "Costo presupuestado (Bs)", type: "number" }, { k: "billable", label: "Cobro", type: "checkbox", hint: "Se cobra al cliente" }]} />}
+        fields={[{ k: "name", label: "Concepto", required: true, full: true }, { k: "qty", label: "Cantidad", type: "number", required: true },
+          { k: "billable", label: "Cobro", type: "checkbox", hint: "Se cobra al cliente" },
+          { k: "price", label: "Precio al cliente (Bs, por unidad)", type: "number", when: (v: any) => v.billable },
+          { k: "cost", label: "Costo (Bs, por unidad)", type: "number", required: true },
+          { k: "asExpense", label: "Costo real", type: "checkbox", hint: "Ya lo pagué: registrarlo también como gasto real del proyecto", full: true },
+          { k: "expDate", label: "Fecha del gasto", type: "date", when: (v: any) => v.asExpense }]} />}
       {modal === "payment" && <FormModal title="Registrar cobro" submitLabel="Registrar cobro" onClose={() => setModal(null)}
         initial={{ date: today, type: payments.length ? "parcial" : "anticipo", method: "Transferencia", amount: "" }} note={`Saldo actual por cobrar: ${fmtBs(fin.pendingCollect)}`}
         onSubmit={async (v: any) => {

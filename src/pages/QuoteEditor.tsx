@@ -16,30 +16,46 @@ const itemsPayload = (items: any[]) => items.map((l, i) => ({
   name: l.name || "", description: l.description || "", unit: l.unit || "unidad", qty: num(l.qty), cost: r2(num(l.cost)),
   markup: l.markup === null || l.markup === "" || l.markup === undefined ? null : num(l.markup), price: r2(num(l.price)),
   price_manual: !!l.priceManual, disc_type: l.discType || "%", disc_val: num(l.discVal), show: !!l.show,
-  image_path: l.imagePath || null, distributed: !!l.distributed,
+  image_path: l.imagePath || null, distributed: !!l.distributed, supplier_id: l.supplierId || null,
 }));
 const cleanItems = (items: any[]) => items.map((l) => ({
   ...l, qty: num(l.qty), cost: r2(num(l.cost)), price: r2(num(l.price)), discVal: num(l.discVal),
   markup: l.markup === null || l.markup === "" || l.markup === undefined ? null : num(l.markup),
 }));
 
-function ProductPicker({ onPick, onClose }: any) {
+function ProductPicker({ onPick, onClose, existing = [] }: any) {
   const { db } = useApp();
   const [qs, setQs] = useState("");
+  const [sel, setSel] = useState<Record<string, any>>({});
   const list = db.products.filter((p: any) => p.active && `${p.name} ${p.sku} ${p.brand} ${p.category}`.toLowerCase().includes(qs.toLowerCase()));
+  const count = Object.keys(sel).length;
+  const toggle = (p: any) => setSel((s0) => { const n = { ...s0 }; if (n[p.id] !== undefined) delete n[p.id]; else n[p.id] = 1; return n; });
+  const confirm = () => onPick(db.products.filter((p: any) => sel[p.id] !== undefined).map((p: any) => ({ p, qty: num(sel[p.id]) > 0 ? num(sel[p.id]) : 1 })));
   return (
-    <Modal title="Agregar producto del catálogo" onClose={onClose} wide>
+    <Modal title="Agregar productos del catálogo" onClose={onClose} wide
+      footer={<><Btn onClick={onClose}>Cancelar</Btn><Btn v="pri" disabled={!count} onClick={confirm}>{count ? `Agregar ${count} producto${count > 1 ? "s" : ""}` : "Selecciona productos"}</Btn></>}>
       <Inp autoFocus placeholder="Buscar por nombre, SKU, marca o categoría" value={qs} onChange={(e: any) => setQs(e.target.value)} />
-      <div className="mt-3" style={{ maxHeight: 440, overflowY: "auto" }}>
+      <div className="vx-muted mt-2" style={{ fontSize: 12 }}>Marca todos los productos que necesites y ajusta la cantidad de cada uno. Luego pulsa “Agregar”.</div>
+      <div className="mt-2" style={{ maxHeight: 440, overflowY: "auto" }}>
         {list.map((p: any) => {
           const st = stockOf(db, p.id);
+          const on = sel[p.id] !== undefined;
           return (
-            <button key={p.id} onClick={() => onPick(p)} className="w-full flex items-center gap-3 p-2 text-left" style={{ border: 0, borderBottom: "1px solid #EEEFF5", background: "none", cursor: "pointer", fontFamily: "inherit" }}>
-              <Photo path={p.imagePath} />
-              <div className="flex-1 min-w-0"><div style={{ fontWeight: 600 }}>{p.name}</div><div className="vx-muted" style={{ fontSize: 12 }}>{p.sku} · {p.brand} {p.model}</div></div>
-              <div className="text-right"><div style={{ fontWeight: 600 }}>{fmtBs(productPrice(p, db.settings))}</div>
-                {p.trackInventory && <div style={{ fontSize: 12, color: st <= Number(p.minStock) ? "var(--rec)" : "var(--muted)" }}>Stock: {st} {p.unit}</div>}</div>
-            </button>
+            <div key={p.id} className="flex items-center gap-3 p-2" style={{ borderBottom: "1px solid #EEEFF5", background: on ? "#F6F0FD" : undefined, borderRadius: 8 }}>
+              <input type="checkbox" checked={on} onChange={() => toggle(p)} style={{ width: 20, height: 20, accentColor: "#7928CA", flexShrink: 0 }} aria-label={`Seleccionar ${p.name}`} />
+              <button type="button" onClick={() => toggle(p)} className="flex items-center gap-3 flex-1 min-w-0 text-left" style={{ border: 0, background: "none", cursor: "pointer", fontFamily: "inherit", padding: 0 }}>
+                <Photo path={p.imagePath} />
+                <div className="flex-1 min-w-0">
+                  <div style={{ fontWeight: 600 }}>{p.name} {existing.includes(p.id) && <span className="vx-badge b-gray">Ya agregado</span>}</div>
+                  <div className="vx-muted" style={{ fontSize: 12 }}>{p.sku} · {fmtBs(productPrice(p, db.settings))}{p.trackInventory ? ` · Stock ${st} ${p.unit}` : ""}</div>
+                </div>
+              </button>
+              {on && <div className="vx-step" style={{ width: 128, flexShrink: 0 }}>
+                <button type="button" aria-label="Restar" onClick={() => setSel({ ...sel, [p.id]: Math.max(1, r2(num(sel[p.id]) - 1)) })}>−</button>
+                <input type="number" min="0" inputMode="decimal" value={sel[p.id]} onChange={(e) => setSel({ ...sel, [p.id]: e.target.value })} aria-label="Cantidad" />
+                <button type="button" aria-label="Sumar" onClick={() => setSel({ ...sel, [p.id]: r2(num(sel[p.id]) + 1) })}>+</button>
+              </div>}
+            </div>
           );
         })}
         {!list.length && <Empty text={db.products.length ? "No se encontraron productos." : "El catálogo está vacío. Registra productos en Catálogo."} />}
@@ -99,17 +115,22 @@ export default function QuoteEditor() {
     }),
   }));
   const removeLine = (lid: string) => setDraft((q: any) => ({ ...q, items: q.items.filter((l: any) => l.id !== lid) }));
-  const addProduct = (p: any) => {
+  const addProducts = (picked: any[]) => {
     setDraft((q: any) => ({
       ...q,
-      items: [...q.items, {
-        id: newId(), kind: "producto", serviceKind: null, productId: p.id, name: p.name, description: p.description, unit: p.unit, qty: 1,
+      items: [...q.items, ...picked.map(({ p, qty }: any) => ({
+        id: newId(), kind: "producto", serviceKind: null, productId: p.id, name: p.name, description: p.description, unit: p.unit, qty,
         cost: Number(p.refCost), markup: productMarkup(p, db.settings), price: productPrice(p, db.settings), priceManual: p.pricingMode === "manual",
-        discType: "%", discVal: 0, show: true, imagePath: p.imagePath, distributed: false,
-      }],
+        discType: "%", discVal: 0, show: true, imagePath: p.imagePath, distributed: false, supplierId: p.supplierId || null,
+      }))],
     }));
     setPicker(false);
+    if (picked.length > 1) notify(`${picked.length} productos agregados`);
   };
+  const addExtraCost = (name = "") => setDraft((q: any) => ({
+    ...q,
+    items: [...q.items, { id: newId(), kind: "costo", serviceKind: "Costo aparte", productId: null, name, description: "", unit: "servicio", qty: 1, cost: 0, markup: null, price: 0, priceManual: true, discType: "%", discVal: 0, show: false, imagePath: null, distributed: false }],
+  }));
   const addService = (kind = "Mano de obra") => setDraft((q: any) => ({
     ...q,
     items: [...q.items, { id: newId(), kind: "servicio", serviceKind: kind, productId: null, name: kind, description: "", unit: "servicio", qty: 1, cost: 0, markup: null, price: 0, priceManual: true, discType: "%", discVal: 0, show: true, imagePath: null, distributed: false }],
@@ -226,6 +247,27 @@ export default function QuoteEditor() {
     }, "Cliente registrado", ["clients"]);
     if (ok && cid) { set({ clientId: cid }); setModal(null); }
   };
+  const newSupplier = async () => {
+    let sid = "";
+    const ok = await run(async () => {
+      const sp = await ins("suppliers", { name: form.sname, phone: form.sphone || "", contact: form.scontact || "" });
+      sid = sp.id;
+      await log(`Proveedor ${form.sname} registrado.`);
+    }, "Proveedor registrado", ["suppliers"]);
+    if (ok && sid) { if (form.lineId) setLine(form.lineId, { supplierId: sid }); setModal(null); }
+  };
+  const supplierName = (id?: string | null) => db.suppliers.find((x: any) => x.id === id)?.name || "Sin proveedor";
+  const supSel = (l: any, style: any = {}) => (
+    <select className="vx-in" style={{ fontSize: 13, ...style }} disabled={ro} value={l.supplierId || ""} aria-label="Proveedor"
+      onChange={(e) => {
+        if (e.target.value === "__new") { setForm({ sname: "", lineId: l.id }); setModal("supplier"); return; }
+        setLine(l.id, { supplierId: e.target.value || null });
+      }}>
+      <option value="">— Proveedor —</option>
+      {db.suppliers.filter((x: any) => x.active || x.id === l.supplierId).map((x: any) => <option key={x.id} value={x.id}>Proveedor: {x.name}</option>)}
+      {!ro && <option value="__new">+ Nuevo proveedor…</option>}
+    </select>
+  );
   const onFile = async (e: any) => {
     const f = e.target.files?.[0];
     e.target.value = "";
@@ -242,7 +284,8 @@ export default function QuoteEditor() {
 
   const products = draft.items.filter((l: any) => l.kind === "producto");
   const services = draft.items.filter((l: any) => l.kind === "servicio");
-  const hiddenLines = draft.items.filter((l: any) => !l.show);
+  const extras = draft.items.filter((l: any) => l.kind === "costo");
+  const hiddenLines = draft.items.filter((l: any) => !l.show && l.kind !== "costo");
 
   const disc = (l: any) => (
     <div className="flex gap-1" style={{ minWidth: 118 }}>
@@ -287,6 +330,7 @@ export default function QuoteEditor() {
           <Field label={`Cantidad (${l.unit})`}>{stepper(l)}</Field>
           <Field label="Precio unitario (Bs)"><input className="vx-in num" style={{ fontWeight: 700 }} type="number" min="0" inputMode="decimal" disabled={ro} value={l.price} onChange={(e) => setLine(l.id, { price: e.target.value })} /></Field>
         </div>
+        <div className="mt-3">{supSel(l)}</div>
         {lineFoot(l, c)}
         <details className="mt-2"><summary>Costo, incremento, descuento y foto ▾</summary>
           <div className="grid grid-cols-2 gap-3 mt-2">
@@ -376,9 +420,9 @@ export default function QuoteEditor() {
                       <tr key={l.id} style={l.show ? {} : { background: "#FFFBF3" }}>
                         <td><button className="vx-btn gh" style={{ padding: 0 }} disabled={ro} title="Reemplazar la foto solo en esta cotización" onClick={() => pickImage(l.id)}><Photo path={l.imagePath} /></button>
                           {!ro && cat && l.imagePath !== cat.imagePath && <div><button className="vx-link" style={{ fontSize: 11 }} onClick={() => setLine(l.id, { imagePath: cat.imagePath })}>Usar la del catálogo</button></div>}</td>
-                        <td><input className="vx-in" disabled={ro} value={l.name} onChange={(e) => setLine(l.id, { name: e.target.value })} /><textarea className="vx-in mt-1" rows={1} style={{ fontSize: 12 }} disabled={ro} value={l.description} onChange={(e) => setLine(l.id, { description: e.target.value })} /></td>
+                        <td><input className="vx-in" disabled={ro} value={l.name} onChange={(e) => setLine(l.id, { name: e.target.value })} /><textarea className="vx-in mt-1" rows={1} style={{ fontSize: 12 }} disabled={ro} value={l.description} onChange={(e) => setLine(l.id, { description: e.target.value })} />{supSel(l, { marginTop: 4 })}</td>
                         <td><div className="flex items-center gap-1"><input className="vx-in num" style={{ width: 62 }} type="number" min="0" disabled={ro} value={l.qty} onChange={(e) => setLine(l.id, { qty: e.target.value })} /><span className="vx-muted" style={{ fontSize: 11 }}>{l.unit}</span></div></td>
-                        <td className="r"><input className="vx-in num" style={{ width: 78 }} type="number" min="0" disabled={ro} value={l.cost} onChange={(e) => setLine(l.id, { cost: e.target.value })} /></td>
+                        <td className="r"><input className="vx-in num" style={{ width: 78 }} type="number" min="0" disabled={ro} value={l.cost} onChange={(e) => setLine(l.id, { cost: e.target.value })} /><div className="vx-muted nw" style={{ fontSize: 11 }}>Total {fmtBs(c.cost)}</div></td>
                         <td className="r"><div className="flex items-center gap-1"><input className="vx-in num" style={{ width: 66 }} type="number" disabled={ro} value={l.priceManual ? r2(markupOf(num(l.price), num(l.cost)) ?? 0) : (l.markup ?? "")} onChange={(e) => setLine(l.id, { markup: e.target.value })} /><span className="vx-muted">%</span></div></td>
                         <td className="r"><input className="vx-in num" style={{ width: 96, fontWeight: 600, borderColor: l.priceManual ? "#E9CFA3" : undefined }} type="number" min="0" disabled={ro} value={l.price} onChange={(e) => setLine(l.id, { price: e.target.value })} />
                           <div style={{ fontSize: 11, color: l.priceManual ? "var(--amber)" : "var(--muted)" }}>{l.priceManual ? "Manual · " : ""}Sugerido {fmtBs(suggested(num(l.cost), num(l.markup)))}</div></td>
@@ -389,11 +433,12 @@ export default function QuoteEditor() {
                       </tr>
                     );
                   })}</tbody>
+                  <tfoot><tr><td colSpan={3}>Totales de equipos y materiales</td><td className="r nw">{fmtBs(t.costProd)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>costo real</div></td><td></td><td></td><td className="r nw">{fmtBs(t.prod)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>al cliente</div></td><td colSpan={3}></td></tr></tfoot>
                 </table>
               </div>
               <div className="vx-only-mob p-3 space-y-3">{products.map(productCard)}{!ro && <Btn icon={Plus} className="w-full justify-center" onClick={() => setPicker(true)}>Agregar otro producto</Btn>}</div>
             </> : <Empty text="Agrega equipos y materiales del catálogo." action={!ro && <Btn v="pri" icon={Plus} onClick={() => setPicker(true)}>Agregar producto</Btn>} />}
-            {products.length > 0 && <div className="flex justify-between px-4 py-2" style={{ fontSize: 13 }}><span className="vx-muted">Subtotal de equipos y materiales visibles</span><b>{fmtBs(t.prod)}</b></div>}
+            {products.length > 0 && <div className="vx-only-mob px-4 py-2" style={{ fontSize: 13 }}><Row k="Costo real de equipos y materiales" v={fmtBs(t.costProd)} /><Row k="Equipos y materiales al cliente" v={fmtBs(t.prod)} strong /></div>}
 
             <div className="vx-sec flex flex-wrap items-center justify-between gap-2"><span>Mano de obra, transporte y servicios ({services.length})</span>
               {!ro && <div className="flex flex-wrap gap-2">{["Mano de obra", "Transporte", "Alimentación"].map((k) => <Btn key={k} sm icon={Plus} onClick={() => addService(k)}>{k}</Btn>)}<Btn sm icon={Plus} onClick={() => addService("Otro")}>Otro</Btn></div>}</div>
@@ -416,11 +461,44 @@ export default function QuoteEditor() {
                       </tr>
                     );
                   })}</tbody>
+                  <tfoot><tr><td colSpan={4}>Totales de servicios</td><td className="r nw">{fmtBs(t.costServ)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>costo real</div></td><td className="r nw">{fmtBs(t.serv)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>al cliente</div></td><td colSpan={3}></td></tr></tfoot>
                 </table>
               </div>
               <div className="vx-only-mob p-3 space-y-3">{services.map(serviceCard)}</div>
             </> : <Empty text="Sin servicios. Agrega mano de obra, transporte u otros conceptos." />}
-            {services.length > 0 && <div className="flex justify-between px-4 py-2" style={{ fontSize: 13 }}><span className="vx-muted">Subtotal de servicios visibles</span><b>{fmtBs(t.serv)}</b></div>}
+            {services.length > 0 && <div className="vx-only-mob px-4 py-2" style={{ fontSize: 13 }}><Row k="Costo real de servicios" v={fmtBs(t.costServ)} /><Row k="Servicios al cliente" v={fmtBs(t.serv)} strong /></div>}
+
+            <div className="vx-sec flex flex-wrap items-center justify-between gap-2"><span>Costos aparte · no se muestran al cliente ({extras.length})</span>
+              {!ro && <div className="flex flex-wrap gap-2">{["Viáticos", "Comisión", "Alquiler de equipo"].map((k) => <Btn key={k} sm icon={Plus} onClick={() => addExtraCost(k)}>{k}</Btn>)}<Btn sm icon={Plus} onClick={() => addExtraCost("")}>Otro costo</Btn></div>}</div>
+            {extras.length ? <>
+              <div className="vx-scroll vx-only-desk">
+                <table className="vx-tbl"><thead><tr><th style={{ minWidth: 240 }}>Concepto</th><th className="r">Cant.</th><th className="r">Costo unitario</th><th className="r">Costo total</th><th></th></tr></thead>
+                  <tbody>{extras.map((l: any) => (
+                    <tr key={l.id}>
+                      <td><input className="vx-in" placeholder="Ej.: viáticos del técnico" disabled={ro} value={l.name} onChange={(e) => setLine(l.id, { name: e.target.value })} /></td>
+                      <td className="r"><input className="vx-in num" style={{ width: 64 }} type="number" min="0" disabled={ro} value={l.qty} onChange={(e) => setLine(l.id, { qty: e.target.value })} /></td>
+                      <td className="r"><input className="vx-in num" style={{ width: 100 }} type="number" min="0" disabled={ro} value={l.cost} onChange={(e) => setLine(l.id, { cost: e.target.value })} /></td>
+                      <td className="r nw" style={{ fontWeight: 600 }}>{fmtBs(lineCalc(l).cost)}</td>
+                      <td>{!ro && <button className="vx-btn gh sm" aria-label="Quitar costo" onClick={() => removeLine(l.id)}><Trash2 size={14} /></button>}</td>
+                    </tr>
+                  ))}</tbody>
+                  <tfoot><tr><td colSpan={3}>Total de costos aparte</td><td className="r nw">{fmtBs(t.costExtra)}</td><td></td></tr></tfoot>
+                </table>
+              </div>
+              <div className="vx-only-mob p-3 space-y-3">{extras.map((l: any) => (
+                <div key={l.id} className="vx-lcard">
+                  <div className="flex gap-2 items-start">
+                    <input className="vx-in flex-1" style={{ fontWeight: 600 }} placeholder="Ej.: viáticos del técnico" disabled={ro} value={l.name} onChange={(e) => setLine(l.id, { name: e.target.value })} aria-label="Concepto" />
+                    {!ro && <button className="vx-btn gh sm" aria-label="Quitar costo" onClick={() => removeLine(l.id)}><Trash2 size={16} /></button>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-3 mt-3">
+                    <Field label="Cantidad">{stepper(l)}</Field>
+                    <Field label="Costo unitario (Bs)"><input className="vx-in num" type="number" min="0" inputMode="decimal" disabled={ro} value={l.cost} onChange={(e) => setLine(l.id, { cost: e.target.value })} /></Field>
+                  </div>
+                  <div className="flex justify-between mt-2"><span className="vx-muted" style={{ fontSize: 12 }}>Costo total</span><b>{fmtBs(lineCalc(l).cost)}</b></div>
+                </div>
+              ))}<Row k="Total de costos aparte" v={fmtBs(t.costExtra)} strong /></div>
+            </> : <div className="px-4 py-3 vx-muted" style={{ fontSize: 13 }}>Gastos internos que no cobras por separado ni aparecen en el PDF: viáticos, comisiones, alquileres, etc. Se suman al costo total.</div>}
 
             <div className="p-4 pt-2">
               <div className="vx-total">
@@ -443,6 +521,27 @@ export default function QuoteEditor() {
                   </div>
                 </div>
               </div>
+
+              <div className="vx-card vx-vf mt-3" style={{ background: "#FAF7FE" }}>
+                <h3 className="mb-1">Costos y ganancia · solo para ti</h3>
+                <div className="vx-muted mb-2" style={{ fontSize: 12 }}>Nada de esto aparece en el PDF del cliente.</div>
+                <div className="grid gap-5" style={{ gridTemplateColumns: "repeat(auto-fit,minmax(min(100%,260px),1fr))" }}>
+                  <div>
+                    <Row k="Costo real de equipos y materiales" v={fmtBs(t.costProd)} />
+                    <Row k="Costo real de servicios y otros" v={fmtBs(t.costServ)} />
+                    <div style={{ borderTop: "1px solid var(--line)" }}><Row k="Costo de la cotización" v={fmtBs(t.quoteCost)} strong /></div>
+                    <Row k="Costos aparte" v={fmtBs(t.costExtra)} />
+                    <div style={{ borderTop: "2px solid var(--lens)" }}><Row k="Costo total" v={fmtBs(t.cost)} strong /></div>
+                  </div>
+                  <div>
+                    <Row k="Total al cliente" v={fmtBs(t.total)} />
+                    <Row k="Costo total" v={"- " + fmtBs(t.cost)} />
+                    <div style={{ borderTop: "2px solid var(--lens)" }}><Row k="Ganancia líquida" v={fmtBs(t.profit)} strong tone={toneOf(t.profit)} /></div>
+                    <Row k="Margen de ganancia" v={fmtPct(t.margin)} strong tone={toneOf(t.profit)} />
+                    <Row k="Incremento sobre el costo" v={fmtPct(t.markup)} />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -454,14 +553,20 @@ export default function QuoteEditor() {
         </div>
 
         <div className="vx-editor-side">
-          <div className="vx-card vx-vf" style={{ background: "#FAF7FE" }}>
-            <h3 className="mb-2">Solo para ti</h3>
-            <Row k="Costo interno total" v={fmtBs(t.cost)} />
-            <Row k="Ganancia estimada" v={fmtBs(t.profit)} strong tone={toneOf(t.profit)} />
-            <Row k="Margen sobre la venta" v={fmtPct(t.margin)} />
-            <Row k="Incremento sobre el costo" v={fmtPct(t.markup)} />
-            <div className="vx-muted mt-2" style={{ fontSize: 12 }}>El costo incluye todos los conceptos, también los ocultos.</div>
-          </div>
+          {products.length > 0 && (
+            <div className="vx-card p-4">
+              <h3 className="mb-1">Compras por proveedor</h3>
+              <div className="vx-muted mb-2" style={{ fontSize: 12 }}>Costo de los equipos y materiales de esta cotización. Solo se ve aquí, nunca en el PDF.</div>
+              {Object.entries(products.reduce((acc: any, l: any) => {
+                const k = l.supplierId || "";
+                acc[k] = acc[k] || { cost: 0, n: 0 };
+                acc[k].cost += lineCalc(l).cost; acc[k].n += 1;
+                return acc;
+              }, {})).sort((a: any, b: any) => b[1].cost - a[1].cost).map(([k, v]: any) => (
+                <Row key={k || "none"} k={`${supplierName(k)} (${v.n})`} v={fmtBs(v.cost)} tone={k ? undefined : "amber"} />
+              ))}
+            </div>
+          )}
           {hiddenLines.length > 0 && (
             <div className="vx-card p-4" style={{ borderColor: "#E9CFA3" }}>
               <h3 className="mb-1 flex items-center gap-2"><EyeOff size={15} color="var(--amber)" />Conceptos ocultos en el PDF</h3>
@@ -486,18 +591,27 @@ export default function QuoteEditor() {
       </div>
 
       <div className="vx-mbar no-print">
-        <div className="flex-1 min-w-0"><div style={{ fontSize: 11, color: "#B9BDD6", fontWeight: 600 }}>Total que verá el cliente</div><div style={{ fontWeight: 800, fontSize: 20 }}>{fmtBs(t.total)}</div></div>
+        <div className="flex-1 min-w-0"><div style={{ fontSize: 11, color: "#B9BDD6", fontWeight: 600 }}>Total que verá el cliente</div><div style={{ fontWeight: 800, fontSize: 20 }}>{fmtBs(t.total)}</div><div style={{ fontSize: 11, color: t.profit < 0 ? "#FF9C9C" : "#7FE3B0" }}>Ganancia {fmtBs(t.profit)}</div></div>
         <Btn icon={Eye} onClick={preview} aria-label="Vista previa">PDF</Btn>
         {!ro && <Btn v="pri" icon={Save} disabled={!dirty || busy} onClick={save}>Guardar</Btn>}
       </div>
 
-      {picker && <ProductPicker onPick={addProduct} onClose={() => setPicker(false)} />}
+      {picker && <ProductPicker onPick={addProducts} existing={products.map((l: any) => l.productId)} onClose={() => setPicker(false)} />}
       {modal === "client" && (
         <Modal title="Nuevo cliente" onClose={() => setModal(null)} footer={<><Btn onClick={() => setModal(null)}>Cancelar</Btn><Btn v="pri" disabled={!form.cname || busy} onClick={newClient}>Registrar cliente</Btn></>}>
           <div className="space-y-3">
             <Field label="Nombre o razón social"><Inp autoFocus value={form.cname || ""} onChange={(e: any) => setForm({ ...form, cname: e.target.value })} /></Field>
             <Field label="Persona de contacto"><Inp value={form.ccontact || ""} onChange={(e: any) => setForm({ ...form, ccontact: e.target.value })} /></Field>
             <Field label="Teléfono"><Inp value={form.cphone || ""} onChange={(e: any) => setForm({ ...form, cphone: e.target.value })} /></Field>
+          </div>
+        </Modal>
+      )}
+      {modal === "supplier" && (
+        <Modal title="Nuevo proveedor" onClose={() => setModal(null)} footer={<><Btn onClick={() => setModal(null)}>Cancelar</Btn><Btn v="pri" disabled={!form.sname || busy} onClick={newSupplier}>Registrar proveedor</Btn></>}>
+          <div className="space-y-3">
+            <Field label="Nombre del proveedor"><Inp autoFocus value={form.sname || ""} onChange={(e: any) => setForm({ ...form, sname: e.target.value })} /></Field>
+            <Field label="Persona de contacto"><Inp value={form.scontact || ""} onChange={(e: any) => setForm({ ...form, scontact: e.target.value })} /></Field>
+            <Field label="Teléfono"><Inp value={form.sphone || ""} onChange={(e: any) => setForm({ ...form, sphone: e.target.value })} /></Field>
           </div>
         </Modal>
       )}
