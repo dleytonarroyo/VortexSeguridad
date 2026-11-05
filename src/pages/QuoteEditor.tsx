@@ -151,6 +151,7 @@ export default function QuoteEditor() {
         company_id: draft.companyId, client_id: draft.clientId || null, number, project_name: draft.projectName || "", address: draft.address || "",
         description: draft.description || "", date: draft.date, valid_until: draft.validUntil || null, terms: draft.terms || "",
         commercial_notes: draft.commercialNotes || "", internal_notes: draft.internalNotes || "", g_disc_type: draft.gDiscType || "%", g_disc_val: num(draft.gDiscVal),
+        show_signature: draft.showSignature !== false,
       },
       p_items: itemsPayload(draft.items),
     });
@@ -219,12 +220,12 @@ export default function QuoteEditor() {
       const q = await ins("quotations", {
         number, companyId: saved.companyId, clientId: saved.clientId, projectName: saved.projectName, address: saved.address, description: saved.description,
         date: today, validUntil: addDays(today, db.settings.validityDays), terms: saved.terms, commercialNotes: saved.commercialNotes,
-        internalNotes: saved.internalNotes, gDiscType: saved.gDiscType, gDiscVal: saved.gDiscVal, status: "borrador",
+        internalNotes: saved.internalNotes, gDiscType: saved.gDiscType, gDiscVal: saved.gDiscVal, showSignature: saved.showSignature !== false, status: "borrador",
       });
       nid = q.id;
       await rpc("save_quotation", {
         p_id: q.id,
-        p_header: { company_id: q.companyId, client_id: q.clientId, number, project_name: q.projectName, address: q.address, description: q.description, date: today, valid_until: q.validUntil, terms: q.terms, commercial_notes: q.commercialNotes, internal_notes: q.internalNotes, g_disc_type: q.gDiscType, g_disc_val: q.gDiscVal },
+        p_header: { company_id: q.companyId, client_id: q.clientId, number, project_name: q.projectName, address: q.address, description: q.description, date: today, valid_until: q.validUntil, terms: q.terms, commercial_notes: q.commercialNotes, internal_notes: q.internalNotes, g_disc_type: q.gDiscType, g_disc_val: q.gDiscVal, show_signature: saved.showSignature !== false },
         p_items: itemsPayload(saved.items.map((l: any) => ({ ...l, id: newId() }))),
       });
       await log(`Cotización ${saved.number} duplicada como ${number}.`);
@@ -549,6 +550,15 @@ export default function QuoteEditor() {
             <Field label="Condiciones de pago (aparecen en el PDF)"><textarea className="vx-in" rows={3} disabled={ro} value={draft.terms} onChange={(e) => set({ terms: e.target.value })} /></Field>
             <Field label="Observaciones comerciales (aparecen en el PDF)"><textarea className="vx-in" rows={3} disabled={ro} value={draft.commercialNotes} onChange={(e) => set({ commercialNotes: e.target.value })} /></Field>
             <Field label="Notas internas (solo en Vortex)"><textarea className="vx-in" rows={3} disabled={ro} value={draft.internalNotes} onChange={(e) => set({ internalNotes: e.target.value })} /></Field>
+            <div className="col-span-full flex flex-wrap items-center gap-3" style={{ borderTop: "1px solid var(--line)", paddingTop: 10 }}>
+              <label className="flex items-center gap-2" style={{ fontSize: 14, fontWeight: 600 }}>
+                <input type="checkbox" style={{ width: 18, height: 18, accentColor: "#7928CA" }} disabled={ro} checked={draft.showSignature !== false} onChange={(e) => set({ showSignature: e.target.checked })} />
+                Incluir la firma al final de la cotización
+              </label>
+              {company && !company.signaturePath && !company.signerName
+                ? <span className="vx-muted" style={{ fontSize: 12 }}>La empresa {company.tradeName} aún no tiene firma. <button className="vx-link" onClick={() => go("empresas")}>Agregarla en Empresas emisoras</button></span>
+                : company && <span className="vx-muted" style={{ fontSize: 12 }}>Firma de {company.signerName || company.tradeName}{company.signerTitle ? ` · ${company.signerTitle}` : ""}</span>}
+            </div>
           </div>
         </div>
 

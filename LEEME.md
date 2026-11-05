@@ -10,6 +10,7 @@ Para dejarlo funcionando necesitas tres cosas: preparar **Supabase** (la base de
 | `supabase/01_base_de_datos.sql` | Crea todas las tablas, la seguridad y el almacenamiento de imágenes. Se pega una sola vez. |
 | `supabase/02_administrador.sql` | Convierte tu usuario en administrador. |
 | `supabase/03_actualizacion_v1_1.sql` | Solo para bases ya instaladas: aplica las mejoras de la versión 1.1. |
+| `supabase/05_actualizacion_v1_5.sql` | Solo para bases ya instaladas: firma en las cotizaciones (versión 1.5). |
 | `supabase/04_actualizacion_v1_4.sql` | Solo para bases ya instaladas: proveedor en las cotizaciones y costos aparte (versiones 1.3 y 1.4). |
 | `src/` | Código de la aplicación. No necesitas tocarlo. |
 | `public/` | Logo, encabezado de cotización e ícono de Vortex. |
@@ -76,7 +77,7 @@ Si agregaste o cambiaste las variables **después** de publicar, ve a **Deploys 
 
 ```powershell
 git add .
-git commit -m "Vortex 1.4"
+git commit -m "Vortex 1.5"
 git push
 ```
 
@@ -102,6 +103,12 @@ En la pantalla de inicio de sesión está **¿Olvidaste tu contraseña?**. Para 
    - Body: `<h2>Vortex</h2><p>Pulsa el enlace para crear una contraseña nueva:</p><p><a href="{{ .ConfirmationURL }}">Crear nueva contraseña</a></p><p>Si no lo pediste, ignora este correo.</p>`
 
 Aunque no configures el correo, el administrador siempre puede asignar una contraseña nueva desde **Usuarios → Contraseña**.
+
+## Novedades de la versión 1.5
+
+- **Firma al final de la cotización.** En **Empresas emisoras** cada empresa tiene su firma: sube la imagen (PNG sin fondo) y en **Editar datos** escribe el nombre, el cargo y los datos adicionales que van debajo (teléfono, CI, correo…).
+- En cada cotización, la casilla **"Incluir la firma al final de la cotización"** permite ponerla o quitarla.
+- Las cotizaciones ya enviadas conservan los datos de la empresa de ese momento; la firma aparece en las nuevas y en las que vuelvas a enviar.
 
 ## Novedades de la versión 1.4
 

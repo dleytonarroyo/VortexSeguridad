@@ -110,6 +110,18 @@ function QuoteDoc({ q, co, cl, totals, images }: any) {
 
         {q.terms ? <View style={[s.pad, { marginTop: 12 }]} wrap={false}><Text style={s.bold}>Condiciones de pago</Text><Text>{q.terms}</Text></View> : null}
         {q.commercialNotes ? <View style={[s.pad, { marginTop: 8 }]} wrap={false}><Text style={s.bold}>Observaciones</Text><Text>{q.commercialNotes}</Text></View> : null}
+        {images.showSig ? (
+          <View style={{ alignItems: "center", marginTop: 34 }} wrap={false}>
+            <View style={{ width: 200, alignItems: "center" }}>
+              {images.signature ? <Image src={images.signature} style={{ height: 62, maxWidth: 180, objectFit: "contain" }} /> : <View style={{ height: 46 }} />}
+              <View style={{ borderTopWidth: 0.8, borderTopColor: "#333", width: 200, paddingTop: 4, alignItems: "center" }}>
+                {co?.signerName ? <Text style={s.bold}>{co.signerName}</Text> : null}
+                {co?.signerTitle ? <Text>{co.signerTitle}</Text> : null}
+                {co?.signerExtra ? <Text style={[s.muted, { fontSize: 8.5, textAlign: "center" }]}>{co.signerExtra}</Text> : null}
+              </View>
+            </View>
+          </View>
+        ) : null}
         {co?.footer ? <Text style={s.footer} fixed>{co.footer}</Text> : null}
       </Page>
     </Document>
@@ -121,12 +133,14 @@ const safeName = (t: string) => String(t || "").normalize("NFD").replace(/[\u030
 /** Genera el PDF y devuelve el archivo listo para descargar o compartir. */
 export async function buildQuotePdf({ q, co, cl, totals }: any): Promise<File> {
   const vis = (q.items || []).filter((l: any) => l.show && l.kind === "producto" && l.imagePath);
-  const [header, logo, ...itemImgs] = await Promise.all([
-    toDataUrl(co?.headerPath), co?.headerPath ? Promise.resolve(null) : toDataUrl(co?.logoPath), ...vis.map((l: any) => toDataUrl(l.imagePath)),
+  const showSig = q.showSignature !== false && !!co && !!(co.signaturePath || co.signerName);
+  const [header, logo, signature, ...itemImgs] = await Promise.all([
+    toDataUrl(co?.headerPath), co?.headerPath ? Promise.resolve(null) : toDataUrl(co?.logoPath),
+    showSig ? toDataUrl(co?.signaturePath) : Promise.resolve(null), ...vis.map((l: any) => toDataUrl(l.imagePath)),
   ]);
   const items: Record<string, string> = {};
   vis.forEach((l: any, i: number) => { if (itemImgs[i]) items[l.id] = itemImgs[i] as string; });
-  const blob = await pdf(<QuoteDoc q={q} co={co} cl={cl} totals={totals} images={{ header, logo, items }} />).toBlob();
+  const blob = await pdf(<QuoteDoc q={q} co={co} cl={cl} totals={totals} images={{ header, logo, items, signature, showSig }} />).toBlob();
   const name = ["Cotizacion", q.number, safeName(cl?.name)].filter(Boolean).join("-") + ".pdf";
   return new File([blob], name, { type: "application/pdf" });
 }

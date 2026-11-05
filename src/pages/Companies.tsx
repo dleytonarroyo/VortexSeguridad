@@ -4,6 +4,9 @@ import { useApp, ins, upd } from "../data/store";
 import { PageHead, Btn, Row, Img, FormModal } from "../components/ui";
 import { uploadImage } from "../lib/files";
 
+const LABELS: Record<string, string> = { logoPath: "Logo", headerPath: "Encabezado", signaturePath: "Firma" };
+const CHECKER = { backgroundColor: "#fff", backgroundImage: "linear-gradient(45deg,#EEF0F6 25%,transparent 25%),linear-gradient(-45deg,#EEF0F6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#EEF0F6 75%),linear-gradient(-45deg,transparent 75%,#EEF0F6 75%)", backgroundSize: "16px 16px", backgroundPosition: "0 0,0 8px,8px -8px,-8px 0" };
+
 export default function Companies() {
   const { db, run, log, notify } = useApp();
   const [edit, setEdit] = useState<any>(null);
@@ -16,17 +19,21 @@ export default function Companies() {
     if (!f || !target) return;
     await run(async () => {
       notify("Subiendo imagen…");
+      if (target.field === "signaturePath" && f.type !== "image/png") notify("Para que la firma no tenga fondo, usa una imagen PNG sin fondo.");
       const path = await uploadImage(f, `companies/${target.id}`, { maxW: target.field === "headerPath" ? 2200 : 900, keepPng: true });
       await upd("companies", target.id, { [target.field]: path });
-      await log(target.field === "logoPath" ? "Logo de empresa actualizado." : "Encabezado de cotización actualizado.");
-    }, target.field === "logoPath" ? "Logo actualizado" : "Encabezado actualizado", ["companies"]);
+      await log(LABELS[target.field] + " actualizado.");
+    }, LABELS[target.field] + " actualizado", ["companies"]);
   };
   const fields = [
     { k: "tradeName", label: "Nombre comercial", required: true }, { k: "legalName", label: "Razón social" }, { k: "taxId", label: "NIT" },
     { k: "prefix", label: "Prefijo de cotizaciones (ej. VTX)", required: true }, { k: "phone", label: "Teléfono" }, { k: "email", label: "Correo", type: "email" },
     { k: "web", label: "Sitio web" }, { k: "contact", label: "Contacto" }, { k: "color", label: "Color del documento", type: "color" },
     { k: "address", label: "Dirección", full: true }, { k: "terms", label: "Condiciones de pago por defecto", type: "textarea" },
-    { k: "footer", label: "Pie de página del PDF", type: "textarea" }, { k: "active", label: "Estado", type: "checkbox", hint: "Disponible para nuevas cotizaciones" },
+    { k: "footer", label: "Pie de página del PDF", type: "textarea" },
+    { k: "signerName", label: "Nombre bajo la firma", full: false }, { k: "signerTitle", label: "Cargo bajo la firma (ej. Gerente General)" },
+    { k: "signerExtra", label: "Datos adicionales bajo la firma (teléfono, CI, correo…)", type: "textarea" },
+    { k: "active", label: "Estado", type: "checkbox", hint: "Disponible para nuevas cotizaciones" },
   ];
   return (
     <div>
@@ -48,7 +55,19 @@ export default function Companies() {
                 {c.headerPath ? <Img path={c.headerPath} alt="Encabezado" style={{ width: "100%", borderRadius: 8, border: "1px solid var(--line)" }} />
                   : <div className="vx-muted" style={{ fontSize: 12, border: "1px dashed var(--line)", borderRadius: 8, padding: 12 }}>Sin encabezado: el PDF usará el logo y los datos de la empresa.</div>}
               </div>
+              <div className="mt-3"><span className="vx-lbl">Firma al final de la cotización</span>
+                <div style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 12, textAlign: "center", ...CHECKER }}>
+                  {c.signaturePath ? <Img path={c.signaturePath} alt="Firma" style={{ maxHeight: 80, maxWidth: 220, objectFit: "contain", display: "block", margin: "0 auto" }} /> : <div className="vx-muted" style={{ fontSize: 12, padding: "14px 0" }}>Sin imagen de firma</div>}
+                  <div style={{ borderTop: "1px solid #333", width: 220, margin: "2px auto 0", paddingTop: 4, fontSize: 12, background: "rgba(255,255,255,.85)" }}>
+                    <div style={{ fontWeight: 700 }}>{c.signerName || <span className="vx-muted">Nombre (edítalo en “Editar datos”)</span>}</div>
+                    {c.signerTitle && <div>{c.signerTitle}</div>}
+                    {c.signerExtra && <div style={{ whiteSpace: "pre-wrap", color: "#444" }}>{c.signerExtra}</div>}
+                  </div>
+                </div>
+              </div>
               <div className="flex gap-2 mt-3 flex-wrap">
+                <Btn sm icon={Camera} onClick={() => pick(c.id, "signaturePath")}>{c.signaturePath ? "Reemplazar firma" : "Subir firma"}</Btn>
+                {c.signaturePath && <Btn sm v="gh" onClick={() => run(async () => { await upd("companies", c.id, { signaturePath: null }); }, "Firma quitada", ["companies"])}>Quitar firma</Btn>}
                 <Btn sm icon={Camera} onClick={() => pick(c.id, "logoPath")}>{c.logoPath ? "Reemplazar logo" : "Subir logo"}</Btn>
                 <Btn sm icon={Camera} onClick={() => pick(c.id, "headerPath")}>{c.headerPath ? "Reemplazar encabezado" : "Subir encabezado"}</Btn>
                 {c.headerPath && <Btn sm v="gh" onClick={() => run(async () => { await upd("companies", c.id, { headerPath: null }); }, "Encabezado quitado", ["companies"])}>Quitar encabezado</Btn>}
@@ -58,13 +77,13 @@ export default function Companies() {
           </div>
         ))}
       </div>
-      <div className="vx-muted mt-4" style={{ fontSize: 12 }}>Las cotizaciones ya enviadas conservan el encabezado, el logo y los datos que tenía la empresa en ese momento. Para el encabezado usa una imagen horizontal (por ejemplo 2000 × 360 píxeles).</div>
+      <div className="vx-muted mt-4" style={{ fontSize: 12 }}>Las cotizaciones ya enviadas conservan el encabezado, el logo y los datos que tenía la empresa en ese momento. Para el encabezado usa una imagen horizontal (por ejemplo 2000 × 360 píxeles). Para la firma usa una imagen PNG sin fondo.</div>
       {edit && <FormModal title={edit === "new" ? "Nueva empresa emisora" : "Editar empresa"} wide initial={edit === "new" ? { color: "#7928CA", active: true } : edit} onClose={() => setEdit(null)} fields={fields}
         onSubmit={async (v: any) => {
           const prefix = String(v.prefix || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
           if (!prefix) return "El prefijo solo puede tener letras y números.";
           if (db.companies.some((c: any) => c.prefix === prefix && c.id !== v.id)) return "Ese prefijo ya lo usa otra empresa.";
-          const row = { tradeName: v.tradeName, legalName: v.legalName || "", taxId: v.taxId || "", prefix, phone: v.phone || "", email: v.email || "", web: v.web || "", contact: v.contact || "", color: v.color || "#7928CA", address: v.address || "", terms: v.terms || "", footer: v.footer || "", active: !!v.active };
+          const row = { tradeName: v.tradeName, legalName: v.legalName || "", taxId: v.taxId || "", prefix, phone: v.phone || "", email: v.email || "", web: v.web || "", contact: v.contact || "", color: v.color || "#7928CA", address: v.address || "", terms: v.terms || "", footer: v.footer || "", signerName: v.signerName || "", signerTitle: v.signerTitle || "", signerExtra: v.signerExtra || "", active: !!v.active };
           const ok = await run(async () => {
             if (edit === "new") await ins("companies", row); else await upd("companies", edit.id, row);
             await log(`Empresa ${v.tradeName} guardada.`);
