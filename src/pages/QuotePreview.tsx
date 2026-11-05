@@ -6,6 +6,7 @@ import { PageHead, Btn, Empty, Img } from "../components/ui";
 import { fmtBs, fmtDate, fmtQty } from "../lib/format";
 import { quoteTotals, lineCalc } from "../lib/calc";
 import { useFileUrl } from "../lib/files";
+import SignatureBlock from "../components/Signature";
 
 const LineImage = ({ path }: { path?: string | null }) => {
   const url = useFileUrl(path);
@@ -122,15 +123,8 @@ export default function QuotePreview() {
           {q.terms && <div className="mt-4"><div style={{ fontWeight: 700 }}>Condiciones de pago</div><div style={{ whiteSpace: "pre-wrap" }}>{q.terms}</div></div>}
           {q.commercialNotes && <div className="mt-3"><div style={{ fontWeight: 700 }}>Observaciones</div><div style={{ whiteSpace: "pre-wrap" }}>{q.commercialNotes}</div></div>}
           {showSig && (
-            <div className="flex justify-center" style={{ marginTop: 40, breakInside: "avoid" }}>
-              <div style={{ width: 260, textAlign: "center" }}>
-                {co.signaturePath ? <Img path={co.signaturePath} alt="Firma" style={{ maxHeight: 85, maxWidth: 230, objectFit: "contain", display: "block", margin: "0 auto" }} /> : <div style={{ height: 60 }} />}
-                <div style={{ borderTop: "1px solid #333", marginTop: 2, paddingTop: 5 }}>
-                  {co.signerName && <div style={{ fontWeight: 700 }}>{co.signerName}</div>}
-                  {co.signerTitle && <div>{co.signerTitle}</div>}
-                  {co.signerExtra && <div style={{ whiteSpace: "pre-wrap", fontSize: 11, color: "#444" }}>{co.signerExtra}</div>}
-                </div>
-              </div>
+            <div style={{ marginTop: 18, breakInside: "avoid", pageBreakInside: "avoid" }}>
+              <SignatureBlock co={co} />
             </div>
           )}
           {co?.footer && <div className="mt-6 pt-3 text-center" style={{ borderTop: "1px solid #E6EAED", fontSize: 11, color: "#666" }}>{co.footer}</div>}

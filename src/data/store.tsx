@@ -52,6 +52,7 @@ export function friendly(e: any): string {
   const code = e?.code;
   if (code === "23505") return "Ya existe un registro con ese mismo dato (por ejemplo, el mismo código, SKU o prefijo).";
   if (code === "23503") return "No se puede completar porque este registro está relacionado con otros datos.";
+  if (code === "23502") return "Falta completar un dato obligatorio.";
   if (code === "23514") return "Algún valor no es válido. Revisa los montos, cantidades y estados.";
   if (code === "42501" || /row-level security/i.test(msg)) return "No tienes permiso para realizar esta acción.";
   if (/Failed to fetch|NetworkError|network/i.test(msg)) return "No hay conexión con el servidor. Revisa tu internet e inténtalo de nuevo.";

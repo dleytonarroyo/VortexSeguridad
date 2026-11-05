@@ -113,3 +113,94 @@ export async function toDataUrl(path?: string | null): Promise<string | null> {
     return null;
   }
 }
+
+/* ---------- Firma: recorta los bordes vacíos para que ocupe bien la línea ---------- */
+export type Trimmed = { url: string; w: number; h: number };
+
+/** Quita los márgenes transparentes (o blancos) alrededor de una imagen. */
+export async function trimImage(dataUrl: string): Promise<Trimmed> {
+  const img = await new Promise<HTMLImageElement>((res, rej) => {
+    const i = new Image();
+    i.onload = () => res(i);
+    i.onerror = () => rej(new Error("No se pudo leer la imagen."));
+    i.src = dataUrl;
+  });
+  const W = img.naturalWidth, H = img.naturalHeight;
+  const c = document.createElement("canvas");
+  c.width = W; c.height = H;
+  const ctx = c.getContext("2d")!;
+  ctx.drawImage(img, 0, 0);
+  const d = ctx.getImageData(0, 0, W, H).data;
+  let x0 = W, y0 = H, x1 = -1, y1 = -1;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const empty = d[i + 3] < 20 || (d[i] > 240 && d[i + 1] > 240 && d[i + 2] > 240);
+      if (!empty) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
+    }
+  }
+  if (x1 < 0) return { url: dataUrl, w: W, h: H };
+  const pad = 4;
+  x0 = Math.max(0, x0 - pad); y0 = Math.max(0, y0 - pad); x1 = Math.min(W - 1, x1 + pad); y1 = Math.min(H - 1, y1 + pad);
+  const w = x1 - x0 + 1, h = y1 - y0 + 1;
+  const o = document.createElement("canvas");
+  o.width = w; o.height = h;
+  o.getContext("2d")!.drawImage(c, x0, y0, w, h, 0, 0, w, h);
+  return { url: o.toDataURL("image/png"), w, h };
+}
+
+/** Calcula el tamaño para que la imagen quepa en un espacio sin deformarse. */
+export const fitBox = (w: number, h: number, maxW: number, maxH: number) => {
+  const k = Math.min(maxW / w, maxH / h);
+  return { w: Math.round(w * k), h: Math.round(h * k) };
+};
+
+const trimCache = new Map<string, Trimmed>();
+/** Carga la imagen de una firma ya recortada (sirve también para firmas subidas antes). */
+export async function loadTrimmed(path?: string | null): Promise<Trimmed | null> {
+  if (!path) return null;
+  if (trimCache.has(path)) return trimCache.get(path)!;
+  const data = await toDataUrl(path);
+  if (!data) return null;
+  try {
+    const t = await trimImage(data);
+    trimCache.set(path, t);
+    return t;
+  } catch {
+    return null;
+  }
+}
+
+export function useTrimmed(path?: string | null) {
+  const [t, setT] = useState<Trimmed | null>(() => (path ? trimCache.get(path) || null : null));
+  useEffect(() => {
+    let alive = true;
+    if (!path) { setT(null); return; }
+    loadTrimmed(path).then((r) => alive && setT(r));
+    return () => { alive = false; };
+  }, [path]);
+  return t;
+}
+
+/** Sube la firma ya recortada y en PNG para conservar la transparencia. */
+export async function uploadSignature(file: File, folder: string): Promise<string> {
+  if (!file.type.startsWith("image/")) throw new Error("La firma debe ser una imagen PNG o JPG.");
+  const raw = await new Promise<string>((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result));
+    fr.onerror = () => rej(fr.error);
+    fr.readAsDataURL(file);
+  });
+  const t = await trimImage(raw);
+  // Limita el tamaño máximo para que el archivo sea liviano.
+  const { w, h } = fitBox(t.w, t.h, 1000, 400);
+  const img = await new Promise<HTMLImageElement>((res) => { const i = new Image(); i.onload = () => res(i); i.src = t.url; });
+  const c = document.createElement("canvas");
+  c.width = Math.min(w, t.w); c.height = Math.min(h, t.h);
+  c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+  const blob = await new Promise<Blob>((res) => c.toBlob((b) => res(b!), "image/png"));
+  const path = `${folder}/${newId()}.png`;
+  const { error } = await supabase.storage.from(BUCKET).upload(path, blob, { contentType: "image/png", upsert: false });
+  if (error) throw error;
+  return path;
+}

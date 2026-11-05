@@ -2,7 +2,8 @@ import { useRef, useState } from "react";
 import { Plus, Camera, Pencil } from "lucide-react";
 import { useApp, ins, upd } from "../data/store";
 import { PageHead, Btn, Row, Img, FormModal } from "../components/ui";
-import { uploadImage } from "../lib/files";
+import { uploadImage, uploadSignature } from "../lib/files";
+import SignatureBlock from "../components/Signature";
 
 const LABELS: Record<string, string> = { logoPath: "Logo", headerPath: "Encabezado", signaturePath: "Firma" };
 const CHECKER = { backgroundColor: "#fff", backgroundImage: "linear-gradient(45deg,#EEF0F6 25%,transparent 25%),linear-gradient(-45deg,#EEF0F6 25%,transparent 25%),linear-gradient(45deg,transparent 75%,#EEF0F6 75%),linear-gradient(-45deg,transparent 75%,#EEF0F6 75%)", backgroundSize: "16px 16px", backgroundPosition: "0 0,0 8px,8px -8px,-8px 0" };
@@ -20,7 +21,9 @@ export default function Companies() {
     await run(async () => {
       notify("Subiendo imagen…");
       if (target.field === "signaturePath" && f.type !== "image/png") notify("Para que la firma no tenga fondo, usa una imagen PNG sin fondo.");
-      const path = await uploadImage(f, `companies/${target.id}`, { maxW: target.field === "headerPath" ? 2200 : 900, keepPng: true });
+      const path = target.field === "signaturePath"
+        ? await uploadSignature(f, `companies/${target.id}`)
+        : await uploadImage(f, `companies/${target.id}`, { maxW: target.field === "headerPath" ? 2200 : 900, keepPng: true });
       await upd("companies", target.id, { [target.field]: path });
       await log(LABELS[target.field] + " actualizado.");
     }, LABELS[target.field] + " actualizado", ["companies"]);
@@ -57,11 +60,8 @@ export default function Companies() {
               </div>
               <div className="mt-3"><span className="vx-lbl">Firma al final de la cotización</span>
                 <div style={{ border: "1px solid var(--line)", borderRadius: 8, padding: 12, textAlign: "center", ...CHECKER }}>
-                  {c.signaturePath ? <Img path={c.signaturePath} alt="Firma" style={{ maxHeight: 80, maxWidth: 220, objectFit: "contain", display: "block", margin: "0 auto" }} /> : <div className="vx-muted" style={{ fontSize: 12, padding: "14px 0" }}>Sin imagen de firma</div>}
-                  <div style={{ borderTop: "1px solid #333", width: 220, margin: "2px auto 0", paddingTop: 4, fontSize: 12, background: "rgba(255,255,255,.85)" }}>
-                    <div style={{ fontWeight: 700 }}>{c.signerName || <span className="vx-muted">Nombre (edítalo en “Editar datos”)</span>}</div>
-                    {c.signerTitle && <div>{c.signerTitle}</div>}
-                    {c.signerExtra && <div style={{ whiteSpace: "pre-wrap", color: "#444" }}>{c.signerExtra}</div>}
+                  <div style={{ background: "rgba(255,255,255,.75)", display: "inline-block", padding: "6px 0", borderRadius: 6 }}>
+                    {c.signaturePath || c.signerName ? <SignatureBlock co={c} width={260} /> : <div className="vx-muted" style={{ fontSize: 12, padding: "14px 20px" }}>Sin firma. Súbela y escribe el nombre en “Editar datos”.</div>}
                   </div>
                 </div>
               </div>

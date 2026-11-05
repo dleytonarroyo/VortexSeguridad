@@ -77,7 +77,7 @@ Si agregaste o cambiaste las variables **después** de publicar, ve a **Deploys 
 
 ```powershell
 git add .
-git commit -m "Vortex 1.5"
+git commit -m "Vortex 1.5.1"
 git push
 ```
 
@@ -103,6 +103,12 @@ En la pantalla de inicio de sesión está **¿Olvidaste tu contraseña?**. Para 
    - Body: `<h2>Vortex</h2><p>Pulsa el enlace para crear una contraseña nueva:</p><p><a href="{{ .ConfirmationURL }}">Crear nueva contraseña</a></p><p>Si no lo pediste, ignora este correo.</p>`
 
 Aunque no configures el correo, el administrador siempre puede asignar una contraseña nueva desde **Usuarios → Contraseña**.
+
+## Novedades de la versión 1.5.1
+
+- Corregido: ya se pueden guardar clientes, proveedores, instaladores y empresas con el NIT vacío.
+- La firma se recorta sola (quita los bordes vacíos de la imagen), se agranda hasta ocupar la línea y queda apoyada sobre ella.
+- La firma aparece justo debajo del último texto de la cotización.
 
 ## Novedades de la versión 1.5
 

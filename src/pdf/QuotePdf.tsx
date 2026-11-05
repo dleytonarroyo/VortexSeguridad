@@ -1,6 +1,6 @@
 /* PDF comercial de la cotización. Se carga solo cuando el usuario pulsa "Descargar PDF". */
 import { Document, Page, View, Text, Image, StyleSheet, pdf } from "@react-pdf/renderer";
-import { toDataUrl } from "../lib/files";
+import { toDataUrl, loadTrimmed, fitBox } from "../lib/files";
 import { fmtBs, fmtDate, fmtQty } from "../lib/format";
 import { lineCalc } from "../lib/calc";
 
@@ -111,10 +111,10 @@ function QuoteDoc({ q, co, cl, totals, images }: any) {
         {q.terms ? <View style={[s.pad, { marginTop: 12 }]} wrap={false}><Text style={s.bold}>Condiciones de pago</Text><Text>{q.terms}</Text></View> : null}
         {q.commercialNotes ? <View style={[s.pad, { marginTop: 8 }]} wrap={false}><Text style={s.bold}>Observaciones</Text><Text>{q.commercialNotes}</Text></View> : null}
         {images.showSig ? (
-          <View style={{ alignItems: "center", marginTop: 34 }} wrap={false}>
-            <View style={{ width: 200, alignItems: "center" }}>
-              {images.signature ? <Image src={images.signature} style={{ height: 62, maxWidth: 180, objectFit: "contain" }} /> : <View style={{ height: 46 }} />}
-              <View style={{ borderTopWidth: 0.8, borderTopColor: "#333", width: 200, paddingTop: 4, alignItems: "center" }}>
+          <View style={{ alignItems: "center", marginTop: 14 }} wrap={false}>
+            <View style={{ width: 210, alignItems: "center" }}>
+              {images.signature ? <Image src={images.signature.url} style={{ width: images.signature.w, height: images.signature.h, marginBottom: -6 }} /> : <View style={{ height: 40 }} />}
+              <View style={{ borderTopWidth: 0.8, borderTopColor: "#333", width: 210, paddingTop: 4, alignItems: "center" }}>
                 {co?.signerName ? <Text style={s.bold}>{co.signerName}</Text> : null}
                 {co?.signerTitle ? <Text>{co.signerTitle}</Text> : null}
                 {co?.signerExtra ? <Text style={[s.muted, { fontSize: 8.5, textAlign: "center" }]}>{co.signerExtra}</Text> : null}
@@ -136,11 +136,13 @@ export async function buildQuotePdf({ q, co, cl, totals }: any): Promise<File> {
   const showSig = q.showSignature !== false && !!co && !!(co.signaturePath || co.signerName);
   const [header, logo, signature, ...itemImgs] = await Promise.all([
     toDataUrl(co?.headerPath), co?.headerPath ? Promise.resolve(null) : toDataUrl(co?.logoPath),
-    showSig ? toDataUrl(co?.signaturePath) : Promise.resolve(null), ...vis.map((l: any) => toDataUrl(l.imagePath)),
+    showSig ? loadTrimmed(co?.signaturePath) : Promise.resolve(null), ...vis.map((l: any) => toDataUrl(l.imagePath)),
   ]);
+  const sigTrim: any = signature;
+  const sigImg = sigTrim ? { url: sigTrim.url, ...fitBox(sigTrim.w, sigTrim.h, 195, 80) } : null;
   const items: Record<string, string> = {};
   vis.forEach((l: any, i: number) => { if (itemImgs[i]) items[l.id] = itemImgs[i] as string; });
-  const blob = await pdf(<QuoteDoc q={q} co={co} cl={cl} totals={totals} images={{ header, logo, items, signature, showSig }} />).toBlob();
+  const blob = await pdf(<QuoteDoc q={q} co={co} cl={cl} totals={totals} images={{ header, logo, items, signature: sigImg, showSig }} />).toBlob();
   const name = ["Cotizacion", q.number, safeName(cl?.name)].filter(Boolean).join("-") + ".pdf";
   return new File([blob], name, { type: "application/pdf" });
 }
