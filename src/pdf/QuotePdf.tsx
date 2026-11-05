@@ -2,10 +2,10 @@
 import { Document, Page, View, Text, Image, StyleSheet, pdf } from "@react-pdf/renderer";
 import { toDataUrl, loadTrimmed, fitBox } from "../lib/files";
 import { fmtBs, fmtDate, fmtQty } from "../lib/format";
-import { lineCalc } from "../lib/calc";
+import { lineCalc, orderedItems, paperOf } from "../lib/calc";
 
 const s = StyleSheet.create({
-  page: { paddingBottom: 40, fontSize: 9.5, fontFamily: "Helvetica", color: "#1A1A1A" },
+  page: { paddingBottom: 46, fontSize: 9.5, fontFamily: "Helvetica", color: "#1A1A1A" },
   pad: { paddingHorizontal: 34 },
   gbar: { height: 3, backgroundColor: "#7928CA" },
   row: { flexDirection: "row" },
@@ -15,17 +15,18 @@ const s = StyleSheet.create({
   box: { backgroundColor: "#F5F4FA", padding: 8, borderRadius: 4, width: 210 },
   th: { backgroundColor: "#F1EEF9", flexDirection: "row", paddingVertical: 5, paddingHorizontal: 4, fontFamily: "Helvetica-Bold", fontSize: 8.5 },
   tr: { flexDirection: "row", borderBottomWidth: 0.6, borderBottomColor: "#E6E6EE", paddingVertical: 5, paddingHorizontal: 4, alignItems: "center" },
-  cImg: { width: 50 }, cDesc: { flex: 1, paddingRight: 6 }, cQty: { width: 60, textAlign: "right" }, cPrice: { width: 75, textAlign: "right" }, cSub: { width: 80, textAlign: "right" },
+  cNo: { width: 22, fontFamily: "Helvetica-Bold", color: "#555" }, cImg: { width: 50 }, cDesc: { flex: 1, paddingRight: 6 }, cQty: { width: 60, textAlign: "right" }, cPrice: { width: 75, textAlign: "right" }, cSub: { width: 80, textAlign: "right" },
   imgBox: { width: 42, height: 42, borderWidth: 0.6, borderColor: "#E6E6EE", borderRadius: 3, alignItems: "center", justifyContent: "center" },
+  pageNo: { position: "absolute", bottom: 6, right: 34, fontSize: 7.5, color: "#999" },
   footer: { position: "absolute", bottom: 18, left: 34, right: 34, textAlign: "center", fontSize: 8, color: "#777", borderTopWidth: 0.6, borderTopColor: "#E6E6EE", paddingTop: 5 },
 });
 
 function QuoteDoc({ q, co, cl, totals, images }: any) {
   const color = co?.color || "#7928CA";
-  const vis = (q.items || []).filter((l: any) => l.show);
+  const vis = orderedItems(q.items || []).filter((l: any) => l.show && l.kind !== "costo");
   return (
     <Document title={`Cotización ${q.number}`} author={co?.tradeName || "Vortex"}>
-      <Page size="A4" style={s.page}>
+      <Page size={paperOf(q).pdf} style={s.page}>
         {images.header ? (
           <View>
             <Image src={images.header} style={{ width: "100%" }} />
@@ -74,12 +75,13 @@ function QuoteDoc({ q, co, cl, totals, images }: any) {
 
         <View style={[s.pad, { marginTop: 10 }]}>
           <View style={s.th}>
-            <Text style={s.cImg}> </Text><Text style={s.cDesc}>Descripción</Text><Text style={s.cQty}>Cant.</Text><Text style={s.cPrice}>P. unitario</Text><Text style={s.cSub}>Subtotal</Text>
+            <Text style={s.cNo}>N.º</Text><Text style={s.cImg}> </Text><Text style={s.cDesc}>Descripción</Text><Text style={s.cQty}>Cant.</Text><Text style={s.cPrice}>P. unitario</Text><Text style={s.cSub}>Subtotal</Text>
           </View>
-          {vis.map((l: any) => {
+          {vis.map((l: any, idx: number) => {
             const c = lineCalc(l);
             return (
-              <View key={l.id} style={s.tr} wrap={false}>
+              <View key={l.id} style={s.tr} wrap={false} minPresenceAhead={idx === vis.length - 1 ? 70 : 0}>
+                <Text style={s.cNo}>{idx + 1}</Text>
                 <View style={s.cImg}>
                   {l.kind === "producto" ? (
                     <View style={s.imgBox}>{images.items[l.id] ? <Image src={images.items[l.id]} style={{ width: 40, height: 40, objectFit: "contain" }} /> : null}</View>
@@ -123,6 +125,7 @@ function QuoteDoc({ q, co, cl, totals, images }: any) {
           </View>
         ) : null}
         {co?.footer ? <Text style={s.footer} fixed>{co.footer}</Text> : null}
+        <Text style={s.pageNo} fixed render={({ pageNumber, totalPages }: any) => (totalPages > 1 ? `Página ${pageNumber} de ${totalPages}` : "")} />
       </Page>
     </Document>
   );

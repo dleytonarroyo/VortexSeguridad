@@ -141,3 +141,16 @@ export const cashEvents = (db: any) => {
     ev.push({ date: x.paidDate || x.date, dir: -1, amount: num(x.total), projectId: x.projectId, companyId: pc(x.projectId), cat: x.destination === "proyecto" ? "Compra directa a proyecto" : "Compra de inventario" }));
   return ev;
 };
+
+/* Orden de las líneas: primero equipos y materiales, luego servicios y al final los costos aparte. */
+const GROUP: Record<string, number> = { producto: 0, servicio: 1, costo: 2 };
+export const orderedItems = (items: any[]) =>
+  (items || []).map((l, i) => ({ l, i })).sort((a, b) => (GROUP[a.l.kind] ?? 1) - (GROUP[b.l.kind] ?? 1) || a.i - b.i).map((x) => x.l);
+
+/* Tamaños de papel disponibles para el PDF */
+export const PAPER: Record<string, { label: string; pdf: any; css: string; px: number }> = {
+  carta: { label: "Carta (8,5 × 11 pulg.)", pdf: "LETTER", css: "8.5in 11in", px: 816 },
+  oficio: { label: "Oficio (8,5 × 13 pulg.)", pdf: [612, 936], css: "8.5in 13in", px: 816 },
+  a4: { label: "A4 (21 × 29,7 cm)", pdf: "A4", css: "210mm 297mm", px: 794 },
+};
+export const paperOf = (q: any) => PAPER[q?.paperSize] || PAPER.carta;

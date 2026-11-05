@@ -4,7 +4,7 @@ import { Download, Printer, Camera, Share2 } from "lucide-react";
 import { useApp } from "../data/store";
 import { PageHead, Btn, Empty, Img } from "../components/ui";
 import { fmtBs, fmtDate, fmtQty } from "../lib/format";
-import { quoteTotals, lineCalc } from "../lib/calc";
+import { quoteTotals, lineCalc, orderedItems, paperOf } from "../lib/calc";
 import { useFileUrl } from "../lib/files";
 import SignatureBlock from "../components/Signature";
 
@@ -26,7 +26,8 @@ export default function QuotePreview() {
   const co = ver ? ver.company || db.companies.find((c: any) => c.id === q.companyId) : db.companies.find((c: any) => c.id === q.companyId);
   const cl = ver ? ver.client || db.clients.find((c: any) => c.id === q.clientId) : db.clients.find((c: any) => c.id === q.clientId);
   const t = quoteTotals(q);
-  const vis = (q.items || []).filter((l: any) => l.show);
+  const vis = orderedItems(q.items || []).filter((l: any) => l.show && l.kind !== "costo");
+  const paper = paperOf(q);
   const color = co?.color || "#7928CA";
   const showSig = q.showSignature !== false && !!co && !!(co.signaturePath || co.signerName);
 
@@ -65,9 +66,10 @@ export default function QuotePreview() {
             {canShare && <Btn icon={Share2} disabled={making} onClick={() => makePdf("share")}>Compartir</Btn>}
             <Btn icon={Printer} onClick={() => window.print()}>Imprimir</Btn>
           </>} />
-        <div className="vx-muted mb-3" style={{ fontSize: 12 }}>Los costos, márgenes, notas internas y conceptos ocultos nunca llegan al documento.</div>
+        <div className="vx-muted mb-3" style={{ fontSize: 12 }}>Papel: <b>{paper.label}</b> (se cambia en los datos de la cotización). Los costos, márgenes, notas internas y conceptos ocultos nunca llegan al documento.</div>
       </div>
-      <div className="vx-pdf">
+      <style>{`@media print{@page{size:${paper.css};margin:10mm}}`}</style>
+      <div className="vx-pdf" style={{ maxWidth: paper.px }}>
         {co?.headerPath ? <>
           <Img path={co.headerPath} alt={co.tradeName} style={{ width: "100%", display: "block" }} />
           <div style={{ height: 4, background: "linear-gradient(90deg,#08BFC5,#7928CA)" }} />
@@ -100,11 +102,12 @@ export default function QuotePreview() {
           <div className="mt-4"><div style={{ fontWeight: 700 }}>{q.projectName}</div>{q.address && <div>Lugar de instalación: {q.address}</div>}{q.description && <div className="mt-1">{q.description}</div>}</div>
           <div className="vx-scroll">
             <table className="mt-4">
-              <thead><tr><th style={{ width: 66 }}></th><th>Descripción</th><th style={{ textAlign: "right" }}>Cant.</th><th style={{ textAlign: "right" }}>P. unitario</th><th style={{ textAlign: "right" }}>Subtotal</th></tr></thead>
-              <tbody>{vis.map((l: any) => {
+              <thead><tr><th style={{ width: 34 }}>N.º</th><th style={{ width: 66 }}></th><th>Descripción</th><th style={{ textAlign: "right" }}>Cant.</th><th style={{ textAlign: "right" }}>P. unitario</th><th style={{ textAlign: "right" }}>Subtotal</th></tr></thead>
+              <tbody>{vis.map((l: any, idx: number) => {
                 const c = lineCalc(l);
                 return (
-                  <tr key={l.id}>
+                  <tr key={l.id} style={{ breakInside: "avoid" }}>
+                    <td style={{ fontWeight: 700, color: "#555" }}>{idx + 1}</td>
                     <td>{l.kind === "producto" && <LineImage path={l.imagePath} />}</td>
                     <td><div style={{ fontWeight: 600 }}>{l.name}</div>{l.description && <div style={{ color: "#555", fontSize: 11 }}>{l.description}</div>}{c.disc > 0 && <div style={{ fontSize: 11, color: "#1F8A55" }}>Descuento: - {fmtBs(c.disc)}</div>}</td>
                     <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>{fmtQty(l.qty)} {l.unit !== "servicio" ? l.unit : ""}</td>

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
-import { Plus, Eye, EyeOff, Save, Send, ThumbsUp, ThumbsDown, Copy, Trash2, FolderKanban } from "lucide-react";
+import { Plus, Eye, EyeOff, Save, Send, ThumbsUp, ThumbsDown, Copy, Trash2, FolderKanban, GripVertical, ChevronUp, ChevronDown } from "lucide-react";
 import { useApp, ins, rpc, upd } from "../data/store";
 import { PageHead, Btn, Badge, Empty, Modal, Field, Inp, Sel, Photo, Row, Spinner, toneOf } from "../components/ui";
-import { fmtBs, fmtPct, fmtDate, addDays, num, r2, newId, todayLaPaz } from "../lib/format";
+import { fmtBs, fmtPct, fmtDate, num, r2, newId, todayLaPaz } from "../lib/format";
 import {
   Q_STATUS, SERVICE_KINDS, quoteTotals, lineCalc, suggested, markupOf, marginOf, productMarkup, productPrice,
-  distributeHidden, isExpired, stockOf,
+  distributeHidden, isExpired, stockOf, orderedItems, PAPER,
 } from "../lib/calc";
 import { uploadImage } from "../lib/files";
 
@@ -75,6 +75,8 @@ export default function QuoteEditor() {
   const [errors, setErrors] = useState<string[]>([]);
   const [form, setForm] = useState<any>({});
   const [imgLine, setImgLine] = useState<string | null>(null);
+  const [dragId, setDragId] = useState<string | null>(null);
+  const [overId, setOverId] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -151,9 +153,9 @@ export default function QuoteEditor() {
         company_id: draft.companyId, client_id: draft.clientId || null, number, project_name: draft.projectName || "", address: draft.address || "",
         description: draft.description || "", date: draft.date, valid_until: draft.validUntil || null, terms: draft.terms || "",
         commercial_notes: draft.commercialNotes || "", internal_notes: draft.internalNotes || "", g_disc_type: draft.gDiscType || "%", g_disc_val: num(draft.gDiscVal),
-        show_signature: draft.showSignature !== false,
+        show_signature: draft.showSignature !== false, paper_size: draft.paperSize || "carta",
       },
-      p_items: itemsPayload(draft.items),
+      p_items: itemsPayload(orderedItems(draft.items)),
     });
     return number;
   };
@@ -212,24 +214,10 @@ export default function QuoteEditor() {
   };
   const duplicate = async () => {
     if (dirty) { notify("Guarda los cambios antes de duplicar la cotización.", "error"); return; }
-    let nid = "";
+    let nid: any = null;
     const ok = await run(async () => {
-      const co = db.companies.find((c: any) => c.id === saved.companyId) || company;
-      const number = await rpc("next_document_number", { p_prefix: co.prefix });
-      const today = todayLaPaz();
-      const q = await ins("quotations", {
-        number, companyId: saved.companyId, clientId: saved.clientId, projectName: saved.projectName, address: saved.address, description: saved.description,
-        date: today, validUntil: addDays(today, db.settings.validityDays), terms: saved.terms, commercialNotes: saved.commercialNotes,
-        internalNotes: saved.internalNotes, gDiscType: saved.gDiscType, gDiscVal: saved.gDiscVal, showSignature: saved.showSignature !== false, status: "borrador",
-      });
-      nid = q.id;
-      await rpc("save_quotation", {
-        p_id: q.id,
-        p_header: { company_id: q.companyId, client_id: q.clientId, number, project_name: q.projectName, address: q.address, description: q.description, date: today, valid_until: q.validUntil, terms: q.terms, commercial_notes: q.commercialNotes, internal_notes: q.internalNotes, g_disc_type: q.gDiscType, g_disc_val: q.gDiscVal, show_signature: saved.showSignature !== false },
-        p_items: itemsPayload(saved.items.map((l: any) => ({ ...l, id: newId() }))),
-      });
-      await log(`Cotización ${saved.number} duplicada como ${number}.`);
-    }, "Copia creada como borrador", ["quotationsRaw", "quotationItems"]);
+      nid = await rpc("duplicate_quotation", { p_source: saved.id });
+    }, "Copia creada. Los cambios que hagas en ella no afectan a la original.", ["quotationsRaw", "quotationItems"]);
     if (ok && nid) go("editor", nid, null, { force: true });
   };
   const preview = async () => {
@@ -283,8 +271,8 @@ export default function QuoteEditor() {
     }
   };
 
-  const products = draft.items.filter((l: any) => l.kind === "producto");
-  const services = draft.items.filter((l: any) => l.kind === "servicio");
+  const products = orderedItems(draft.items).filter((l: any) => l.kind === "producto");
+  const services = orderedItems(draft.items).filter((l: any) => l.kind === "servicio");
   const extras = draft.items.filter((l: any) => l.kind === "costo");
   const hiddenLines = draft.items.filter((l: any) => !l.show && l.kind !== "costo");
 
@@ -314,11 +302,59 @@ export default function QuoteEditor() {
   );
   const pickImage = (lid: string) => { setImgLine(lid); fileRef.current?.click(); };
 
+  /* Orden y numeración */
+  const pdfNo: Record<string, number> = {};
+  orderedItems(draft.items).filter((l: any) => l.show && l.kind !== "costo").forEach((l: any, i: number) => (pdfNo[l.id] = i + 1));
+  const moveTo = (fromId: string, toId: string) => setDraft((q: any) => {
+    const items = orderedItems(q.items);
+    const from = items.findIndex((l: any) => l.id === fromId), to = items.findIndex((l: any) => l.id === toId);
+    if (from < 0 || to < 0 || from === to || items[from].kind !== items[to].kind) return q;
+    const [m] = items.splice(from, 1);
+    items.splice(to, 0, m);
+    return { ...q, items };
+  });
+  const move = (l: any, dir: number) => {
+    const list = orderedItems(draft.items).filter((x: any) => x.kind === l.kind);
+    const i = list.findIndex((x: any) => x.id === l.id);
+    const t = list[i + dir];
+    if (t) moveTo(l.id, t.id);
+  };
+  const dragProps = (l: any) => ro ? {} : {
+    draggable: dragId === l.id,
+    onDragStart: (e: any) => { e.dataTransfer.effectAllowed = "move"; try { e.dataTransfer.setData("text/plain", l.id); } catch { /* */ } },
+    onDragOver: (e: any) => { if (dragId) { e.preventDefault(); setOverId(l.id); } },
+    onDrop: (e: any) => { e.preventDefault(); if (dragId) moveTo(dragId, l.id); setDragId(null); setOverId(null); },
+    onDragEnd: () => { setDragId(null); setOverId(null); },
+  };
+  const handleCell = (l: any) => (
+    <td style={{ width: 46, whiteSpace: "nowrap" }}>
+      <div className="flex items-center gap-1">
+        {!ro && <span title="Arrastra para mover" aria-label="Arrastra para mover" style={{ cursor: "grab", color: "var(--muted)", display: "inline-flex" }}
+          onMouseDown={() => setDragId(l.id)} onMouseUp={() => setDragId(null)}><GripVertical size={16} /></span>}
+        <b style={{ fontSize: 12, color: "var(--lens-dark)" }}>{pdfNo[l.id] || "—"}</b>
+      </div>
+    </td>
+  );
+  const rowStyle = (l: any) => ({ ...(l.show ? {} : { background: "#FFFBF3" }), ...(overId === l.id && dragId && dragId !== l.id ? { boxShadow: "inset 0 3px 0 var(--lens)" } : {}), ...(dragId === l.id ? { opacity: 0.5 } : {}) });
+  const cardHead = (l: any, list: any[]) => {
+    const i = list.findIndex((x: any) => x.id === l.id);
+    return (
+      <div className="flex items-center justify-between mb-2">
+        <span className="vx-badge b-purple">{pdfNo[l.id] ? `Ítem ${pdfNo[l.id]}` : "No sale en el PDF"}</span>
+        {!ro && <div className="flex gap-1">
+          <button className="vx-btn sm" disabled={i <= 0} aria-label="Subir" onClick={() => move(l, -1)}><ChevronUp size={15} /></button>
+          <button className="vx-btn sm" disabled={i >= list.length - 1} aria-label="Bajar" onClick={() => move(l, 1)}><ChevronDown size={15} /></button>
+        </div>}
+      </div>
+    );
+  };
+
   const productCard = (l: any) => {
     const c = lineCalc(l);
     const cat = db.products.find((p: any) => p.id === l.productId);
     return (
       <div key={l.id} className={`vx-lcard ${l.show ? "" : "off"}`}>
+        {cardHead(l, products)}
         <div className="flex gap-3 items-start">
           <button className="vx-btn gh" style={{ padding: 0 }} disabled={ro} aria-label="Reemplazar foto" onClick={() => pickImage(l.id)}><Photo path={l.imagePath} size={60} /></button>
           <div className="flex-1 min-w-0">
@@ -350,6 +386,7 @@ export default function QuoteEditor() {
     const c = lineCalc(l);
     return (
       <div key={l.id} className={`vx-lcard ${l.show ? "" : "off"}`}>
+        {cardHead(l, services)}
         <div className="flex gap-2 items-start">
           <div className="flex-1 min-w-0 grid gap-2">
             <select className="vx-in" disabled={ro} value={l.serviceKind || "Otro"} onChange={(e) => setLine(l.id, { serviceKind: e.target.value })} aria-label="Tipo de servicio">{SERVICE_KINDS.map((k) => <option key={k}>{k}</option>)}</select>
@@ -386,6 +423,12 @@ export default function QuoteEditor() {
         </>} />
 
       {errors.length > 0 && <div className="vx-card p-3 mb-4" style={{ borderColor: "#EBC3C3", background: "var(--rec-soft)" }}>{errors.map((e) => <div key={e} style={{ color: "var(--rec)" }}>• {e}</div>)}</div>}
+      {saved.copiedFrom && (() => {
+        const src = db.quotations.find((x: any) => x.id === saved.copiedFrom);
+        return <div className="vx-card p-3 mb-4" style={{ background: "var(--cyan-soft)", borderColor: "#A9E6E8" }}>
+          Esta es una copia{src ? <> de <button className="vx-link" onClick={() => go("editor", src.id)}>{src.number}</button></> : ""}. Los cambios que hagas aquí no modifican la cotización original.
+        </div>;
+      })()}
       {saved.status === "rechazada" && <div className="vx-card p-3 mb-4" style={{ background: "var(--rec-soft)", borderColor: "#EBC3C3" }}>Rechazada. Motivo: {saved.rejectReason || "sin especificar"}.</div>}
 
       <div className="vx-editor">
@@ -404,6 +447,7 @@ export default function QuoteEditor() {
               <Field label="Dirección de instalación"><Inp disabled={ro} value={draft.address} onChange={(e: any) => set({ address: e.target.value })} /></Field>
               <Field label="Fecha"><Inp disabled={ro} type="date" value={draft.date || ""} onChange={(e: any) => set({ date: e.target.value })} /></Field>
               <Field label="Válida hasta"><Inp disabled={ro} type="date" value={draft.validUntil || ""} onChange={(e: any) => set({ validUntil: e.target.value })} /></Field>
+              <Field label="Tamaño de papel del PDF"><Sel disabled={ro} value={draft.paperSize || "carta"} onChange={(e: any) => set({ paperSize: e.target.value })} options={Object.entries(PAPER).map(([value, p]) => ({ value, label: p.label }))} /></Field>
             </div>
             <Field label="Descripción del trabajo" className="mt-3"><textarea className="vx-in" rows={2} disabled={ro} value={draft.description} onChange={(e) => set({ description: e.target.value })} /></Field>
           </div>
@@ -413,12 +457,13 @@ export default function QuoteEditor() {
             <div className="vx-sec flex flex-wrap items-center justify-between gap-2"><span>Equipos y materiales ({products.length})</span>{!ro && <Btn sm v="pri" icon={Plus} onClick={() => setPicker(true)}>Agregar producto</Btn>}</div>
             {products.length ? <>
               <div className="vx-scroll vx-only-desk">
-                <table className="vx-tbl"><thead><tr><th>Foto</th><th style={{ minWidth: 190 }}>Producto</th><th className="r">Cant.</th><th className="r">Costo</th><th className="r">Incremento</th><th className="r">Precio final</th><th className="r">Total</th><th>PDF</th><th>Descuento</th><th></th></tr></thead>
+                <table className="vx-tbl"><thead><tr><th>N.º</th><th>Foto</th><th style={{ minWidth: 190 }}>Producto</th><th className="r">Cant.</th><th className="r">Costo</th><th className="r">Incremento</th><th className="r">Precio final</th><th className="r">Total</th><th>PDF</th><th>Descuento</th><th></th></tr></thead>
                   <tbody>{products.map((l: any) => {
                     const c = lineCalc(l);
                     const cat = db.products.find((p: any) => p.id === l.productId);
                     return (
-                      <tr key={l.id} style={l.show ? {} : { background: "#FFFBF3" }}>
+                      <tr key={l.id} style={rowStyle(l)} {...dragProps(l)}>
+                        {handleCell(l)}
                         <td><button className="vx-btn gh" style={{ padding: 0 }} disabled={ro} title="Reemplazar la foto solo en esta cotización" onClick={() => pickImage(l.id)}><Photo path={l.imagePath} /></button>
                           {!ro && cat && l.imagePath !== cat.imagePath && <div><button className="vx-link" style={{ fontSize: 11 }} onClick={() => setLine(l.id, { imagePath: cat.imagePath })}>Usar la del catálogo</button></div>}</td>
                         <td><input className="vx-in" disabled={ro} value={l.name} onChange={(e) => setLine(l.id, { name: e.target.value })} /><textarea className="vx-in mt-1" rows={1} style={{ fontSize: 12 }} disabled={ro} value={l.description} onChange={(e) => setLine(l.id, { description: e.target.value })} />{supSel(l, { marginTop: 4 })}</td>
@@ -434,7 +479,7 @@ export default function QuoteEditor() {
                       </tr>
                     );
                   })}</tbody>
-                  <tfoot><tr><td colSpan={3}>Totales de equipos y materiales</td><td className="r nw">{fmtBs(t.costProd)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>costo real</div></td><td></td><td></td><td className="r nw">{fmtBs(t.prod)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>al cliente</div></td><td colSpan={3}></td></tr></tfoot>
+                  <tfoot><tr><td colSpan={4}>Totales de equipos y materiales</td><td className="r nw">{fmtBs(t.costProd)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>costo real</div></td><td></td><td></td><td className="r nw">{fmtBs(t.prod)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>al cliente</div></td><td colSpan={3}></td></tr></tfoot>
                 </table>
               </div>
               <div className="vx-only-mob p-3 space-y-3">{products.map(productCard)}{!ro && <Btn icon={Plus} className="w-full justify-center" onClick={() => setPicker(true)}>Agregar otro producto</Btn>}</div>
@@ -445,11 +490,12 @@ export default function QuoteEditor() {
               {!ro && <div className="flex flex-wrap gap-2">{["Mano de obra", "Transporte", "Alimentación"].map((k) => <Btn key={k} sm icon={Plus} onClick={() => addService(k)}>{k}</Btn>)}<Btn sm icon={Plus} onClick={() => addService("Otro")}>Otro</Btn></div>}</div>
             {services.length ? <>
               <div className="vx-scroll vx-only-desk">
-                <table className="vx-tbl"><thead><tr><th>Tipo</th><th style={{ minWidth: 200 }}>Concepto</th><th className="r">Cant.</th><th className="r">Precio al cliente</th><th className="r">Costo interno</th><th className="r">Total</th><th>PDF</th><th>Descuento</th><th></th></tr></thead>
+                <table className="vx-tbl"><thead><tr><th>N.º</th><th>Tipo</th><th style={{ minWidth: 200 }}>Concepto</th><th className="r">Cant.</th><th className="r">Precio al cliente</th><th className="r">Costo interno</th><th className="r">Total</th><th>PDF</th><th>Descuento</th><th></th></tr></thead>
                   <tbody>{services.map((l: any) => {
                     const c = lineCalc(l);
                     return (
-                      <tr key={l.id} style={l.show ? {} : { background: "#FFFBF3" }}>
+                      <tr key={l.id} style={rowStyle(l)} {...dragProps(l)}>
+                        {handleCell(l)}
                         <td><select className="vx-in" style={{ width: 150 }} disabled={ro} value={l.serviceKind || "Otro"} onChange={(e) => setLine(l.id, { serviceKind: e.target.value })}>{SERVICE_KINDS.map((k) => <option key={k}>{k}</option>)}</select></td>
                         <td><input className="vx-in" disabled={ro} value={l.name} onChange={(e) => setLine(l.id, { name: e.target.value })} /></td>
                         <td className="r"><input className="vx-in num" style={{ width: 64 }} type="number" min="0" disabled={ro} value={l.qty} onChange={(e) => setLine(l.id, { qty: e.target.value })} /></td>
@@ -462,7 +508,7 @@ export default function QuoteEditor() {
                       </tr>
                     );
                   })}</tbody>
-                  <tfoot><tr><td colSpan={4}>Totales de servicios</td><td className="r nw">{fmtBs(t.costServ)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>costo real</div></td><td className="r nw">{fmtBs(t.serv)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>al cliente</div></td><td colSpan={3}></td></tr></tfoot>
+                  <tfoot><tr><td colSpan={5}>Totales de servicios</td><td className="r nw">{fmtBs(t.costServ)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>costo real</div></td><td className="r nw">{fmtBs(t.serv)}<div className="vx-muted" style={{ fontSize: 11, fontWeight: 500 }}>al cliente</div></td><td colSpan={3}></td></tr></tfoot>
                 </table>
               </div>
               <div className="vx-only-mob p-3 space-y-3">{services.map(serviceCard)}</div>

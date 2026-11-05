@@ -10,6 +10,7 @@ Para dejarlo funcionando necesitas tres cosas: preparar **Supabase** (la base de
 | `supabase/01_base_de_datos.sql` | Crea todas las tablas, la seguridad y el almacenamiento de imágenes. Se pega una sola vez. |
 | `supabase/02_administrador.sql` | Convierte tu usuario en administrador. |
 | `supabase/03_actualizacion_v1_1.sql` | Solo para bases ya instaladas: aplica las mejoras de la versión 1.1. |
+| `supabase/06_actualizacion_v1_6.sql` | Solo para bases ya instaladas: tamaño de papel y duplicado independiente (versión 1.6). |
 | `supabase/05_actualizacion_v1_5.sql` | Solo para bases ya instaladas: firma en las cotizaciones (versión 1.5). |
 | `supabase/04_actualizacion_v1_4.sql` | Solo para bases ya instaladas: proveedor en las cotizaciones y costos aparte (versiones 1.3 y 1.4). |
 | `src/` | Código de la aplicación. No necesitas tocarlo. |
@@ -77,7 +78,7 @@ Si agregaste o cambiaste las variables **después** de publicar, ve a **Deploys 
 
 ```powershell
 git add .
-git commit -m "Vortex 1.5.1"
+git commit -m "Vortex 1.6"
 git push
 ```
 
@@ -103,6 +104,15 @@ En la pantalla de inicio de sesión está **¿Olvidaste tu contraseña?**. Para 
    - Body: `<h2>Vortex</h2><p>Pulsa el enlace para crear una contraseña nueva:</p><p><a href="{{ .ConfirmationURL }}">Crear nueva contraseña</a></p><p>Si no lo pediste, ignora este correo.</p>`
 
 Aunque no configures el correo, el administrador siempre puede asignar una contraseña nueva desde **Usuarios → Contraseña**.
+
+## Novedades de la versión 1.6
+
+- **Duplicar** crea una copia totalmente independiente: lo que cambies en la copia no afecta a la original, y la copia muestra un aviso con enlace a la original.
+- **Tamaño de papel** por cotización: Carta, Oficio (8,5 × 13 pulg.) o A4. Se elige en "Datos de la cotización" y se aplica al PDF y a la impresión.
+- El total ya no queda solo en una hoja nueva: si no cabe, el último ítem pasa con él. Si el PDF tiene varias hojas, se numeran ("Página 1 de 2").
+- **Numeración de ítems** (N.º) en el editor, la vista previa y el PDF.
+- **Mover ítems:** en la computadora, arrastra desde el ícono de puntos a la izquierda de cada fila; en el celular, usa las flechas ▲ ▼ de cada tarjeta.
+- Los servicios y otros cargos siempre aparecen después de los equipos y materiales, y los costos aparte al final (no salen en el PDF).
 
 ## Novedades de la versión 1.5.1
 
